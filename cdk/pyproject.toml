@@ -1,0 +1,15 @@
+[project]
+name = "fundraising-calculator-infra"
+version = "0.1.0"
+description = "Infrastructure (CDK) for the fundraising calculator"
+requires-python = ">=3.11"
+dependencies = [
+  "aws-cdk-lib>=2.150.0",
+  "constructs>=10.0.0,<11.0.0"
+]
+
+[tool.uv]
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"

@@ -1,0 +1,9 @@
+{
+    "app": "python -m src.app",
+    "context": {
+      "stage": "dev",
+      "project_name": "fundraising-calculator",
+      "api_name": "fundraising-api",
+      "pledges_table_name": "Pledges"
+    }
+  }
