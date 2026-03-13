@@ -21,3 +21,13 @@ class DynamoDbConstruct(Construct):
             billing_mode=dynamodb.BillingMode.PAY_PER_REQUEST,
             removal_policy=RemovalPolicy.DESTROY if config.stage == "dev" else RemovalPolicy.RETAIN,
         )
+
+        # Add GSI for querying by email
+        self.pledges_table.add_global_secondary_index(
+            index_name="EmailIndex",
+            partition_key=dynamodb.Attribute(
+                name="email",
+                type=dynamodb.AttributeType.STRING,
+            ),
+            projection_type=dynamodb.ProjectionType.ALL,
+        )

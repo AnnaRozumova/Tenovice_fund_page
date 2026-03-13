@@ -43,6 +43,16 @@ class ApiConstruct(Construct):
             ),
         )
 
+        if handlers.list_pledges:
+            self.http_api.add_routes(
+                path="/pledges",
+                methods=[apigwv2.HttpMethod.GET],
+                integration=integrations.HttpLambdaIntegration(
+                    "ListPledgesIntegration",
+                    handler=handlers.list_pledges,
+                ),
+            )
+
         if handlers.create_pledge:
             self.http_api.add_routes(
                 path="/pledges",

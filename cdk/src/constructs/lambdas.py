@@ -14,6 +14,7 @@ from .config import AppConfig
 class LambdaHandlers:
     get_stats: _lambda.Function
     create_pledge: Optional[_lambda.Function] = None
+    list_pledges: Optional[_lambda.Function] = None
     get_pledge: Optional[_lambda.Function] = None
     update_pledge: Optional[_lambda.Function] = None
 
@@ -59,6 +60,21 @@ class LambdasConstruct(Construct):
 
         pledges_table.grant_read_write_data(create_pledge)
 
+        list_pledges = _lambda.Function(
+            self,
+            "ListPledgesFn",
+            function_name=f"{config.project_name}-{config.stage}-list-pledges",
+            runtime=_lambda.Runtime.PYTHON_3_11,
+            handler="handlers.list_pledges.handler",
+            code=_lambda.Code.from_asset("../services/pledges_api/src"),
+            timeout=Duration.seconds(10),
+            environment={
+                "PLEDGES_TABLE_NAME": pledges_table.table_name,
+            },
+        )
+
+        pledges_table.grant_read_data(list_pledges)
+
         get_pledge = _lambda.Function(
             self,
             "GetPledgeFn",
@@ -92,6 +108,7 @@ class LambdasConstruct(Construct):
         self.handlers = LambdaHandlers(
             get_stats=get_stats,
             create_pledge=create_pledge,
+            list_pledges=list_pledges,
             get_pledge=get_pledge,
             update_pledge=update_pledge,
         )

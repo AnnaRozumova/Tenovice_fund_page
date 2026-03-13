@@ -48,13 +48,12 @@ def handler(event, context):
         # Convert DynamoDB item to Pledge model and return
         pledge = Pledge.from_dynamodb_item(item)
 
+        # Return only public/anonymous information (no name, no email)
         return _response(200, {
-            "pledge_id": pledge.pledge_id,
-            "name": pledge.name,
-            "email": pledge.email,
             "amount": pledge.amount,
             "is_monthly": pledge.is_monthly,
             "created_at": pledge.created_at,
+            "updated_at": item.get("updated_at"),
             "message": pledge.message,
         })
 
