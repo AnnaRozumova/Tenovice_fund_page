@@ -53,12 +53,36 @@ body {
 
 /* Hero Section */
 .hero {
-  text-align: center;
-  padding: 60px 20px;
+  padding: 40px 20px;
   background: var(--bg-white);
   border-radius: var(--border-radius);
   box-shadow: var(--shadow);
   margin: 40px 0;
+}
+
+.hero-content {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 40px;
+  align-items: center;
+}
+
+.hero-left {
+  padding: 20px;
+}
+
+.hero-right {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hero-image {
+  width: 100%;
+  height: auto;
+  border-radius: var(--border-radius);
+  box-shadow: var(--shadow);
+  object-fit: cover;
 }
 
 .title {
@@ -66,35 +90,29 @@ body {
   color: var(--text-dark);
   margin-bottom: 20px;
   font-weight: 700;
+  text-align: left;
 }
 
 .description {
   font-size: 1.25rem;
   color: var(--text-light);
-  max-width: 700px;
-  margin: 0 auto;
   line-height: 1.8;
+  text-align: left;
 }
 
-/* Images Gallery */
-.images-gallery {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 20px;
+/* Banner Section */
+.banner-section {
   margin: 40px 0;
+  border-radius: var(--border-radius);
+  overflow: hidden;
+  box-shadow: var(--shadow);
 }
 
-.image-placeholder {
-  aspect-ratio: 16 / 9;
-  background: linear-gradient(135deg, var(--secondary-color), var(--primary-color));
-  border-radius: var(--border-radius);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: white;
-  font-size: 1.5rem;
-  font-weight: 600;
-  box-shadow: var(--shadow);
+.banner-image {
+  width: 100%;
+  height: auto;
+  display: block;
+  object-fit: cover;
 }
 
 /* Progress Section */
@@ -267,6 +285,11 @@ body {
 
 /* Responsive */
 @media (max-width: 768px) {
+  .hero-content {
+    grid-template-columns: 1fr;
+    gap: 30px;
+  }
+
   .title {
     font-size: 2rem;
   }
