@@ -81,7 +81,6 @@ body {
   width: 100%;
   height: auto;
   border-radius: var(--border-radius);
-  box-shadow: var(--shadow);
   object-fit: cover;
 }
 
