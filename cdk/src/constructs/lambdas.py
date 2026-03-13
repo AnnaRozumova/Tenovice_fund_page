@@ -15,8 +15,6 @@ class LambdaHandlers:
     get_stats: _lambda.Function
     create_pledge: Optional[_lambda.Function] = None
     list_pledges: Optional[_lambda.Function] = None
-    get_pledge: Optional[_lambda.Function] = None
-    update_pledge: Optional[_lambda.Function] = None
 
 
 class LambdasConstruct(Construct):
@@ -75,40 +73,8 @@ class LambdasConstruct(Construct):
 
         pledges_table.grant_read_data(list_pledges)
 
-        get_pledge = _lambda.Function(
-            self,
-            "GetPledgeFn",
-            function_name=f"{config.project_name}-{config.stage}-get-pledge",
-            runtime=_lambda.Runtime.PYTHON_3_11,
-            handler="handlers.get_pledge.handler",
-            code=_lambda.Code.from_asset("../services/pledges_api/src"),
-            timeout=Duration.seconds(10),
-            environment={
-                "PLEDGES_TABLE_NAME": pledges_table.table_name,
-            },
-        )
-
-        pledges_table.grant_read_data(get_pledge)
-
-        update_pledge = _lambda.Function(
-            self,
-            "UpdatePledgeFn",
-            function_name=f"{config.project_name}-{config.stage}-update-pledge",
-            runtime=_lambda.Runtime.PYTHON_3_11,
-            handler="handlers.update_pledge.handler",
-            code=_lambda.Code.from_asset("../services/pledges_api/src"),
-            timeout=Duration.seconds(10),
-            environment={
-                "PLEDGES_TABLE_NAME": pledges_table.table_name,
-            },
-        )
-
-        pledges_table.grant_read_write_data(update_pledge)
-
         self.handlers = LambdaHandlers(
             get_stats=get_stats,
             create_pledge=create_pledge,
             list_pledges=list_pledges,
-            get_pledge=get_pledge,
-            update_pledge=update_pledge,
         )

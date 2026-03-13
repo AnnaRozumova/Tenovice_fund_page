@@ -87,12 +87,10 @@ The application uses a modular CDK construct pattern:
 
 ### Current Implementation Status
 
-All API endpoints are fully implemented:
+The API has been simplified to 3 endpoints:
 - **GET /stats** - Get aggregated statistics
 - **POST /pledges** - Upsert a pledge (create or update by email)
 - **GET /pledges** - List all pledges anonymously
-- **GET /pledges/{pledgeID}** - Get a specific pledge (anonymous)
-- **PUT /pledges/{pledgeID}** - Update a specific pledge (kept for compatibility, prefer POST /pledges)
 
 ### Email-Based Upsert Pattern
 
