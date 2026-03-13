@@ -77,6 +77,7 @@ The application uses a modular CDK construct pattern:
 - **DynamoDb** (`cdk/src/constructs/dynamodb.py`): Creates the Pledges table with partition key `pledgeID`
 - **Lambdas** (`cdk/src/constructs/lambdas.py`): Defines Lambda functions and grants DynamoDB permissions
 - **Api** (`cdk/src/constructs/apigw.py`): Creates API Gateway V2 (HTTP API) with CORS and route integrations
+- **S3Website** (`cdk/src/constructs/s3_website.py`): Creates S3 bucket configured for static website hosting and deploys web files
 
 ### Data Flow
 
@@ -174,3 +175,33 @@ Test structure:
 - `tests/e2e/` - End-to-end tests (against deployed API)
 
 See `TESTING_PLAN.md` for detailed testing strategy and `services/pledges_api/tests/README.md` for test setup instructions.
+
+## Frontend / Static Website
+
+**Location:** `web/` directory
+
+The frontend is a plain HTML/CSS/JS static website hosted on S3:
+- No build tools required (no npm, no Vite)
+- Automatically deployed via CDK when you run `make infra-deploy`
+- Files are uploaded from `web/` directory to S3 bucket
+
+**Configuration:** Edit `web/config.js`:
+- `API_URL` - Your API Gateway endpoint
+- `CURRENT_BALANCE` - Real money on account (hardcoded)
+- `FUNDRAISING_GOAL` - Target amount (hardcoded)
+
+**S3 Bucket:**
+- Bucket name: `{project_name}-{stage}-website`
+- Configured for static website hosting
+- Public read access enabled
+- Website URL output after deployment
+
+**To update website after changes:**
+```bash
+make infra-deploy  # Redeploys everything including website files
+```
+
+Or manually sync files:
+```bash
+aws s3 sync web/ s3://fundraising-calculator-dev-website --delete
+```

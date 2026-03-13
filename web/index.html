@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tenovice Fundraising</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <!-- Header with Logo -->
+    <header class="header">
+      <div class="logo">
+        <!-- Logo will be added here -->
+        <div class="logo-placeholder">LOGO</div>
+      </div>
+    </header>
+
+    <!-- Hero Section -->
+    <section class="hero">
+      <h1 class="title">Support Tenovice Project</h1>
+      <p class="description">
+        Join us in making a difference. Your contribution helps us achieve our goals
+        and create positive change in our community.
+      </p>
+    </section>
+
+    <!-- Images Section -->
+    <section class="images-gallery">
+      <div class="image-placeholder">Image 1</div>
+      <div class="image-placeholder">Image 2</div>
+      <div class="image-placeholder">Image 3</div>
+    </section>
+
+    <!-- Progress Section -->
+    <section class="progress-section">
+      <h2>Fundraising Progress</h2>
+
+      <!-- Real Money Status -->
+      <div class="status-card">
+        <div class="status-label">Current Balance</div>
+        <div class="status-amount" id="currentBalance">€12,500</div>
+        <div class="status-sublabel">Real money on account</div>
+      </div>
+
+      <!-- Goal -->
+      <div class="status-card">
+        <div class="status-label">Our Goal</div>
+        <div class="status-amount">€50,000</div>
+        <div class="status-sublabel">Target amount</div>
+      </div>
+
+      <!-- Progress Bar -->
+      <div class="progress-bar-container">
+        <div class="progress-bar" id="progressBar" style="width: 25%"></div>
+      </div>
+      <div class="progress-text">
+        <span id="progressPercent">25%</span> of goal reached
+      </div>
+    </section>
+
+    <!-- Pledges Status -->
+    <section class="pledges-section">
+      <h2>Community Pledges</h2>
+
+      <div class="pledges-stats">
+        <div class="pledge-stat">
+          <div class="pledge-stat-number" id="pledgesTotal">Loading...</div>
+          <div class="pledge-stat-label">Total Pledged</div>
+        </div>
+        <div class="pledge-stat">
+          <div class="pledge-stat-number" id="pledgesCount">Loading...</div>
+          <div class="pledge-stat-label">Supporters</div>
+        </div>
+        <div class="pledge-stat">
+          <div class="pledge-stat-number" id="pledgesMonthly">Loading...</div>
+          <div class="pledge-stat-label">Monthly Recurring</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Call to Action -->
+    <section class="cta-section">
+      <div class="heart-icon">❤️</div>
+      <h2>Do you want to be a heart of it?</h2>
+      <button class="cta-button" id="pledgeButton">Make a Pledge</button>
+    </section>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <p>&copy; 2026 Tenovice Project. All rights reserved.</p>
+    </footer>
+  </div>
+
+  <script src="config.js"></script>
+  <script src="main.js"></script>
+</body>
+</html>
