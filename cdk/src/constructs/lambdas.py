@@ -44,4 +44,54 @@ class LambdasConstruct(Construct):
 
         pledges_table.grant_read_data(get_stats)
 
-        self.handlers = LambdaHandlers(get_stats=get_stats)
+        create_pledge = _lambda.Function(
+            self,
+            "CreatePledgeFn",
+            function_name=f"{config.project_name}-{config.stage}-create-pledge",
+            runtime=_lambda.Runtime.PYTHON_3_11,
+            handler="handlers.create_pledge.handler",
+            code=_lambda.Code.from_asset("../services/pledges_api/src"),
+            timeout=Duration.seconds(10),
+            environment={
+                "PLEDGES_TABLE_NAME": pledges_table.table_name,
+            },
+        )
+
+        pledges_table.grant_read_write_data(create_pledge)
+
+        get_pledge = _lambda.Function(
+            self,
+            "GetPledgeFn",
+            function_name=f"{config.project_name}-{config.stage}-get-pledge",
+            runtime=_lambda.Runtime.PYTHON_3_11,
+            handler="handlers.get_pledge.handler",
+            code=_lambda.Code.from_asset("../services/pledges_api/src"),
+            timeout=Duration.seconds(10),
+            environment={
+                "PLEDGES_TABLE_NAME": pledges_table.table_name,
+            },
+        )
+
+        pledges_table.grant_read_data(get_pledge)
+
+        update_pledge = _lambda.Function(
+            self,
+            "UpdatePledgeFn",
+            function_name=f"{config.project_name}-{config.stage}-update-pledge",
+            runtime=_lambda.Runtime.PYTHON_3_11,
+            handler="handlers.update_pledge.handler",
+            code=_lambda.Code.from_asset("../services/pledges_api/src"),
+            timeout=Duration.seconds(10),
+            environment={
+                "PLEDGES_TABLE_NAME": pledges_table.table_name,
+            },
+        )
+
+        pledges_table.grant_read_write_data(update_pledge)
+
+        self.handlers = LambdaHandlers(
+            get_stats=get_stats,
+            create_pledge=create_pledge,
+            get_pledge=get_pledge,
+            update_pledge=update_pledge,
+        )

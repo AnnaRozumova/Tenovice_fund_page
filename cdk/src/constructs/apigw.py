@@ -24,7 +24,12 @@ class ApiConstruct(Construct):
             api_name=config.api_name,
             cors_preflight=apigwv2.CorsPreflightOptions(
                 allow_headers=["*"],
-                allow_methods=[apigwv2.CorsHttpMethod.GET, apigwv2.CorsHttpMethod.OPTIONS],
+                allow_methods=[
+                    apigwv2.CorsHttpMethod.GET,
+                    apigwv2.CorsHttpMethod.POST,
+                    apigwv2.CorsHttpMethod.PUT,
+                    apigwv2.CorsHttpMethod.OPTIONS,
+                ],
                 allow_origins=["*"],
             ),
         )
@@ -37,3 +42,33 @@ class ApiConstruct(Construct):
                 handler=handlers.get_stats,
             ),
         )
+
+        if handlers.create_pledge:
+            self.http_api.add_routes(
+                path="/pledges",
+                methods=[apigwv2.HttpMethod.POST],
+                integration=integrations.HttpLambdaIntegration(
+                    "CreatePledgeIntegration",
+                    handler=handlers.create_pledge,
+                ),
+            )
+
+        if handlers.get_pledge:
+            self.http_api.add_routes(
+                path="/pledges/{pledgeID}",
+                methods=[apigwv2.HttpMethod.GET],
+                integration=integrations.HttpLambdaIntegration(
+                    "GetPledgeIntegration",
+                    handler=handlers.get_pledge,
+                ),
+            )
+
+        if handlers.update_pledge:
+            self.http_api.add_routes(
+                path="/pledges/{pledgeID}",
+                methods=[apigwv2.HttpMethod.PUT],
+                integration=integrations.HttpLambdaIntegration(
+                    "UpdatePledgeIntegration",
+                    handler=handlers.update_pledge,
+                ),
+            )
