@@ -3,11 +3,13 @@ import json
 import os
 import uuid
 from datetime import datetime, timezone
+from decimal import Decimal
+
 import boto3
 from botocore.exceptions import ClientError
 
-from domain.validation import validate_pledge_input
 from domain.models import Pledge
+from domain.validation import validate_pledge_input
 
 dynamodb = boto3.resource("dynamodb")
 
@@ -23,128 +25,189 @@ def _response(status: int, body: dict):
 
 
 def handler(event, context):
-    """
-    Upsert a pledge by email.
-
-    If email exists: updates the existing pledge and adjusts stats.
-    If email is new: creates a new pledge and adds to stats.
-
-    Expected body:
-    {
-        "name": "John Doe",
-        "email": "john@example.com",
-        "amount": 100,
-        "is_monthly": true,
-        "message": "Optional message"
-    }
-    """
     table_name = os.environ["PLEDGES_TABLE_NAME"]
     table = dynamodb.Table(table_name)
 
-    # Parse request body
     try:
         body = json.loads(event.get("body", "{}"))
     except json.JSONDecodeError:
         return _response(400, {"error": "Invalid JSON in request body"})
 
-    # Validate input
-    is_valid, error_message = validate_pledge_input(body)
-    if not is_valid:
-        return _response(400, {"error": error_message})
+    try:
+        validated = validate_pledge_input(body)
+    except ValueError as e:
+        return _response(400, {"error": str(e)})
 
-    email = body["email"].strip().lower()
+    email = validated["email"]
 
     try:
-        # Query existing pledge by email using GSI
         existing_pledge = _find_pledge_by_email(table, email)
 
         if existing_pledge:
-            # Update existing pledge
-            return _update_existing_pledge(table, existing_pledge, body)
-        else:
-            # Create new pledge
-            return _create_new_pledge(table, body)
+            return _update_existing_pledge(table, existing_pledge, validated)
+
+        return _create_new_pledge(table, validated)
 
     except ClientError as e:
         return _response(500, {"error": "Failed to process pledge", "detail": str(e)})
 
 
 def _find_pledge_by_email(table, email: str):
-    """Query pledge by email using GSI"""
-    try:
-        response = table.query(
-            IndexName="EmailIndex",
-            KeyConditionExpression="email = :email",
-            ExpressionAttributeValues={":email": email}
-        )
-        items = response.get("Items", [])
+    response = table.query(
+        IndexName="EmailIndex",
+        KeyConditionExpression="email = :email",
+        ExpressionAttributeValues={":email": email},
+    )
+    items = response.get("Items", [])
+    items = [item for item in items if item.get("pledgeID") != "STATS"]
 
-        # Filter out STATS record if it somehow has an email
-        items = [item for item in items if item.get("pledgeID") != "STATS"]
+    if items:
+        return Pledge.from_dynamodb_item(items[0])
 
-        if items:
-            return Pledge.from_dynamodb_item(items[0])
-        return None
-    except ClientError:
-        return None
+    return None
 
 
-def _create_new_pledge(table, body: dict):
-    """Create a new pledge and add to stats"""
+def _calculate_remaining_months(end_month: int, end_year: int) -> int:
+    now = datetime.now(timezone.utc)
+    current_year = now.year
+    current_month = now.month
+    return (end_year - current_year) * 12 + (end_month - current_month) + 1
+
+
+def _calculate_pledge_values(
+    amount: Decimal,
+    is_monthly: bool,
+    end_month: int | None,
+    end_year: int | None,
+) -> tuple[Decimal, Decimal]:
+    if not is_monthly:
+        return amount, Decimal("0")
+
+    if end_month is None or end_year is None:
+        raise ValueError("Monthly pledge requires end_month and end_year")
+
+    remaining_months = _calculate_remaining_months(end_month, end_year)
+    campaign_total = amount * Decimal(remaining_months)
+    monthly_value = amount
+
+    return campaign_total, monthly_value
+
+
+def _create_new_pledge(table, data: dict):
     pledge_id = str(uuid.uuid4())
-    created_at = datetime.now(timezone.utc).isoformat()
+    timestamp = datetime.now(timezone.utc).isoformat()
+
+    amount: Decimal = data["amount"]
+    is_monthly: bool = data["is_monthly"]
+    contributors_count: int = data["contributors_count"]
+    end_month: int | None = data["end_month"]
+    end_year: int | None = data["end_year"]
+
+    campaign_total, monthly_value = _calculate_pledge_values(
+        amount=amount,
+        is_monthly=is_monthly,
+        end_month=end_month,
+        end_year=end_year,
+    )
 
     pledge = Pledge(
         pledge_id=pledge_id,
-        name=body["name"].strip(),
-        email=body["email"].strip().lower(),
-        amount=int(body["amount"]),
-        is_monthly=body["is_monthly"],
-        created_at=created_at,
-        message=body.get("message", "").strip() if body.get("message") else None,
+        name=data["name"],
+        email=data["email"],
+        contributors_count=contributors_count,
+        amount=amount,
+        is_monthly=is_monthly,
+        created_at=timestamp,
+        campaign_total=campaign_total,
+        message=data.get("message"),
+        end_month=end_month,
+        end_year=end_year,
+        updated_at=None,
     )
 
-    # Save to DynamoDB
     table.put_item(Item=pledge.to_dynamodb_item())
 
-    # Add to stats
-    _adjust_stats(table, amount_delta=pledge.amount, count_delta=1,
-                  monthly_delta=pledge.amount if pledge.is_monthly else 0)
+    _adjust_stats(
+        table,
+        pledged_total_delta=campaign_total,
+        contributors_delta=contributors_count,
+        monthly_total_delta=monthly_value,
+    )
 
-    return _response(201, {
-        "pledge_id": pledge.pledge_id,
-        "message": "Pledge created successfully"
-    })
+    return _response(
+        201,
+        {
+            "pledge_id": pledge.pledge_id,
+            "message": "Pledge created successfully",
+        },
+    )
 
 
-def _update_existing_pledge(table, existing_pledge: Pledge, body: dict):
-    """Update existing pledge and adjust stats"""
-    # Calculate deltas
-    old_amount = existing_pledge.amount
-    old_monthly = existing_pledge.amount if existing_pledge.is_monthly else 0
+def _update_existing_pledge(table, existing_pledge: Pledge, data: dict):
+    new_amount: Decimal = data["amount"]
+    new_is_monthly: bool = data["is_monthly"]
+    new_contributors_count: int = data["contributors_count"]
+    new_end_month: int | None = data["end_month"]
+    new_end_year: int | None = data["end_year"]
+    new_message = data.get("message")
+    updated_at = datetime.now(timezone.utc).isoformat()
 
-    new_amount = int(body["amount"])
-    new_is_monthly = body["is_monthly"]
-    new_monthly = new_amount if new_is_monthly else 0
+    old_campaign_total: Decimal = existing_pledge.campaign_total
+    old_monthly_value: Decimal = (
+        existing_pledge.amount if existing_pledge.is_monthly else Decimal("0")
+    )
+    old_contributors_count: int = existing_pledge.contributors_count
 
-    amount_delta = new_amount - old_amount
-    monthly_delta = new_monthly - old_monthly
+    new_campaign_total, new_monthly_value = _calculate_pledge_values(
+        amount=new_amount,
+        is_monthly=new_is_monthly,
+        end_month=new_end_month,
+        end_year=new_end_year,
+    )
 
-    # Update pledge record
-    update_expression = "SET #name = :name, amount = :amount, is_monthly = :is_monthly, updated_at = :updated_at"
+    pledged_total_delta = new_campaign_total - old_campaign_total
+    monthly_total_delta = new_monthly_value - old_monthly_value
+    contributors_delta = new_contributors_count - old_contributors_count
+
+    set_parts = [
+        "#name = :name",
+        "email = :email",
+        "amount = :amount",
+        "is_monthly = :is_monthly",
+        "contributors_count = :contributors_count",
+        "campaign_total = :campaign_total",
+        "updated_at = :updated_at",
+    ]
+    remove_parts = []
+
     expression_values = {
-        ":name": body["name"].strip(),
+        ":name": data["name"],
+        ":email": data["email"],
         ":amount": new_amount,
         ":is_monthly": new_is_monthly,
-        ":updated_at": datetime.now(timezone.utc).isoformat(),
+        ":contributors_count": new_contributors_count,
+        ":campaign_total": new_campaign_total,
+        ":updated_at": updated_at,
     }
     expression_names = {"#name": "name"}
 
-    # Update message if provided
-    message = body.get("message", "").strip() if body.get("message") else None
-    if message is not None:
-        update_expression += ", message = :message"
-        expression_values[":message"] = message
+    if new_message is not None:
+        set_parts.append("message = :message")
+        expression_values[":message"] = new_message
+    else:
+        remove_parts.append("message")
+
+    if new_is_monthly:
+        set_parts.append("end_month = :end_month")
+        set_parts.append("end_year = :end_year")
+        expression_values[":end_month"] = new_end_month
+        expression_values[":end_year"] = new_end_year
+    else:
+        remove_parts.extend(["end_month", "end_year"])
+
+    update_expression = "SET " + ", ".join(set_parts)
+    if remove_parts:
+        update_expression += " REMOVE " + ", ".join(remove_parts)
 
     table.update_item(
         Key={"pledgeID": existing_pledge.pledge_id},
@@ -153,43 +216,43 @@ def _update_existing_pledge(table, existing_pledge: Pledge, body: dict):
         ExpressionAttributeNames=expression_names,
     )
 
-    # Adjust stats by delta (no change in count)
-    _adjust_stats(table, amount_delta=amount_delta, count_delta=0, monthly_delta=monthly_delta)
+    _adjust_stats(
+        table,
+        pledged_total_delta=pledged_total_delta,
+        contributors_delta=contributors_delta,
+        monthly_total_delta=monthly_total_delta,
+    )
 
-    return _response(200, {
-        "pledge_id": existing_pledge.pledge_id,
-        "message": "Pledge updated successfully"
-    })
+    return _response(
+        200,
+        {
+            "pledge_id": existing_pledge.pledge_id,
+            "message": "Pledge updated successfully",
+        },
+    )
 
 
-def _adjust_stats(table, amount_delta: int, count_delta: int, monthly_delta: int):
-    """
-    Adjust STATS record by delta values.
+def _adjust_stats(
+    table,
+    pledged_total_delta: Decimal,
+    contributors_delta: int,
+    monthly_total_delta: Decimal,
+):
+    update_expression = "ADD pledged_total :pledged_total_delta, contributors_count :contributors_delta"
+    expression_values = {
+        ":pledged_total_delta": pledged_total_delta,
+        ":contributors_delta": contributors_delta,
+        ":timestamp": datetime.now(timezone.utc).isoformat(),
+    }
 
-    Args:
-        amount_delta: Change in total pledged amount (can be negative)
-        count_delta: Change in pledger count (0 or 1)
-        monthly_delta: Change in monthly total (can be negative)
-    """
-    try:
-        update_expression = "ADD pledged_total :amount_delta, pledgers_count :count_delta"
-        expression_values = {
-            ":amount_delta": amount_delta,
-            ":count_delta": count_delta,
-            ":timestamp": datetime.now(timezone.utc).isoformat(),
-        }
+    if monthly_total_delta != Decimal("0"):
+        update_expression += ", monthly_total :monthly_total_delta"
+        expression_values[":monthly_total_delta"] = monthly_total_delta
 
-        if monthly_delta != 0:
-            update_expression += ", monthly_total :monthly_delta"
-            expression_values[":monthly_delta"] = monthly_delta
+    update_expression += " SET updated_at = :timestamp"
 
-        update_expression += " SET updated_at = :timestamp"
-
-        table.update_item(
-            Key={"pledgeID": "STATS"},
-            UpdateExpression=update_expression,
-            ExpressionAttributeValues=expression_values,
-        )
-    except ClientError:
-        # Don't fail the whole request if stats update fails
-        pass
+    table.update_item(
+        Key={"pledgeID": "STATS"},
+        UpdateExpression=update_expression,
+        ExpressionAttributeValues=expression_values,
+    )

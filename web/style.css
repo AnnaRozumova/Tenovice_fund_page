@@ -99,15 +99,13 @@ body {
   text-align: left;
 }
 
-/* Banner Section */
-.banner-section {
-  margin: 40px 0;
+.hero-banner {
+  margin-top: 32px;
   border-radius: var(--border-radius);
   overflow: hidden;
-  box-shadow: var(--shadow);
 }
 
-.banner-image {
+.hero-banner-image {
   width: 100%;
   height: auto;
   display: block;
