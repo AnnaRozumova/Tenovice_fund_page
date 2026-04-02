@@ -19,16 +19,80 @@
         <p class="page-eyebrow">Tenovice Fundraising</p>
         <h1>Make your pledge</h1>
         <p class="page-description">
-          Fill in your pledge and immediately see how it would influence the campaign totals.
+          First enter your email. If you already made a pledge, you can review it and decide whether to update it.
         </p>
       </div>
       <a class="text-link" href="index.html">← Back to homepage</a>
     </section>
 
-    <section class="pledge-page">
+    <section class="lookup-card" id="lookupCard">
+      <h2>Start with your email</h2>
+      <p class="section-intro">We will check whether you already have a pledge in the system.</p>
+
+      <div class="form-grid form-grid-2 lookup-grid">
+        <div class="form-field">
+          <label for="lookupEmail">Email</label>
+          <input id="lookupEmail" name="lookupEmail" type="email" required>
+        </div>
+      </div>
+
+      <div id="lookupError" class="form-message form-message-error hidden" role="alert"></div>
+
+      <div class="form-actions">
+        <button type="button" class="cta-button form-submit-button" id="lookupButton">Continue</button>
+        <a class="secondary-button" href="index.html">Cancel</a>
+      </div>
+    </section>
+
+    <section id="existingPledgeCard" class="existing-pledge-card hidden">
+      <h2>Existing pledge found</h2>
+      <p class="section-intro">We found a pledge for this email. You can review it and choose whether to update it.</p>
+
+      <div class="existing-pledge-summary">
+        <div class="preview-row">
+          <span>Name</span>
+          <strong id="existingName">-</strong>
+        </div>
+        <div class="preview-row">
+          <span>Email</span>
+          <strong id="existingEmail">-</strong>
+        </div>
+        <div class="preview-row">
+          <span>Contributors count</span>
+          <strong id="existingContributors">0</strong>
+        </div>
+        <div class="preview-row">
+          <span>Amount</span>
+          <strong id="existingAmount">€0</strong>
+        </div>
+        <div class="preview-row">
+          <span>Type</span>
+          <strong id="existingType">-</strong>
+        </div>
+        <div class="preview-row hidden" id="existingEndDateRow">
+          <span>End date</span>
+          <strong id="existingEndDate">-</strong>
+        </div>
+        <div class="preview-row">
+          <span>Campaign total</span>
+          <strong id="existingCampaignTotal">€0</strong>
+        </div>
+        <div class="preview-row">
+          <span>Message</span>
+          <strong id="existingMessage">-</strong>
+        </div>
+      </div>
+
+      <div class="form-actions">
+        <button type="button" class="cta-button form-submit-button" id="editExistingButton">Yes, edit pledge</button>
+        <a class="secondary-button" href="index.html">Back to homepage</a>
+      </div>
+    </section>
+
+    <section id="pledgeFlowSection" class="pledge-page hidden">
       <div class="pledge-form-card">
-        <h2>Your pledge</h2>
-        <p class="section-intro">All preview values below update live before you save.</p>
+        <h2 id="pledgeFormTitle">Your pledge</h2>
+        <p class="section-intro" id="pledgeFormIntro">All preview values below update live before you save.</p>
 
         <form id="pledgeForm" novalidate>
           <div class="form-grid form-grid-2">
@@ -147,7 +211,7 @@
         </div>
 
         <div class="preview-note">
-          <p><strong>One-time pledge:</strong> total impact equals the entered amount.</p>
+          <p id="previewModeNote"><strong>New pledge mode:</strong> preview adds this pledge on top of current totals.</p>
           <p><strong>Monthly pledge:</strong> total impact equals amount × remaining months until the selected end month and year.</p>
         </div>
       </aside>

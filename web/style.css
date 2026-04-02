@@ -639,3 +639,29 @@ body {
     font-size: 2rem;
   }
 }
+
+.lookup-card,
+.existing-pledge-card {
+  background: var(--bg-white);
+  border-radius: var(--border-radius);
+  box-shadow: var(--shadow);
+  padding: 32px;
+  margin: 40px 0;
+}
+
+.lookup-grid {
+  margin-bottom: 20px;
+}
+
+.existing-pledge-summary {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+  margin-bottom: 24px;
+}
+
+#email[readonly] {
+  background: #f6f8fa;
+  color: var(--text-light);
+  cursor: not-allowed;
+}
