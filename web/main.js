@@ -42,8 +42,7 @@ function setupPledgeButton() {
   const pledgeButton = document.getElementById('pledgeButton');
 
   pledgeButton.addEventListener('click', () => {
-    // TODO: Navigate to pledge form page
-    alert('Pledge form will be implemented next!');
+    window.location.href = 'pledge.html';
   });
 }
 

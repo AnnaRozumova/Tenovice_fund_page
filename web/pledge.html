@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Make a Pledge | Tenovice Fundraising</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <div class="logo">
+        <img src="images/logo_kagyu.svg" alt="Karma Kagyu buddhism">
+      </div>
+    </header>
+
+    <section class="page-hero page-hero-compact">
+      <div>
+        <p class="page-eyebrow">Tenovice Fundraising</p>
+        <h1>Make your pledge</h1>
+        <p class="page-description">
+          Fill in your pledge and immediately see how it would influence the campaign totals.
+        </p>
+      </div>
+      <a class="text-link" href="index.html">← Back to homepage</a>
+    </section>
+
+    <section class="pledge-page">
+      <div class="pledge-form-card">
+        <h2>Your pledge</h2>
+        <p class="section-intro">All preview values below update live before you save.</p>
+
+        <form id="pledgeForm" novalidate>
+          <div class="form-grid form-grid-2">
+            <div class="form-field">
+              <label for="name">Name</label>
+              <input id="name" name="name" type="text" required>
+            </div>
+
+            <div class="form-field">
+              <label for="email">Email</label>
+              <input id="email" name="email" type="email" required>
+            </div>
+          </div>
+
+          <div class="form-grid form-grid-2">
+            <div class="form-field">
+              <label for="contributors_count">Contributors count</label>
+              <input id="contributors_count" name="contributors_count" type="number" min="1" step="1" value="1" required>
+            </div>
+
+            <div class="form-field">
+              <label for="amount">Amount (EUR)</label>
+              <input id="amount" name="amount" type="number" min="1" step="1" required>
+            </div>
+          </div>
+
+          <div class="form-field checkbox-field">
+            <label class="checkbox-label" for="is_monthly">
+              <input id="is_monthly" name="is_monthly" type="checkbox">
+              <span>This is a monthly recurring pledge</span>
+            </label>
+          </div>
+
+          <div id="monthlyFields" class="form-grid form-grid-2 hidden" aria-hidden="true">
+            <div class="form-field">
+              <label for="end_month">End month</label>
+              <select id="end_month" name="end_month">
+                <option value="">Select month</option>
+                <option value="1">January</option>
+                <option value="2">February</option>
+                <option value="3">March</option>
+                <option value="4">April</option>
+                <option value="5">May</option>
+                <option value="6">June</option>
+                <option value="7">July</option>
+                <option value="8">August</option>
+                <option value="9">September</option>
+                <option value="10">October</option>
+                <option value="11">November</option>
+                <option value="12">December</option>
+              </select>
+            </div>
+
+            <div class="form-field">
+              <label for="end_year">End year</label>
+              <input id="end_year" name="end_year" type="number" min="2026" step="1" placeholder="2026">
+            </div>
+          </div>
+
+          <div class="form-field">
+            <label for="message">Message (optional)</label>
+            <textarea id="message" name="message" rows="4" placeholder="Optional message to accompany the pledge"></textarea>
+          </div>
+
+          <div id="formError" class="form-message form-message-error hidden" role="alert"></div>
+          <div id="formSuccess" class="form-message form-message-success hidden"></div>
+
+          <div class="form-actions">
+            <button type="submit" class="cta-button form-submit-button" id="savePledgeButton">Save pledge</button>
+            <a class="secondary-button" href="index.html">Cancel</a>
+          </div>
+        </form>
+      </div>
+
+      <aside class="pledge-preview-card">
+        <div class="preview-header">
+          <h2>Live preview</h2>
+          <div id="previewStatus" class="preview-status">Loading current stats…</div>
+        </div>
+
+        <div class="preview-list">
+          <div class="preview-row">
+            <span>Pledge total impact</span>
+            <strong id="previewImpact">€0</strong>
+          </div>
+          <div class="preview-row">
+            <span>Monthly effect</span>
+            <strong id="previewMonthlyEffect">€0</strong>
+          </div>
+          <div class="preview-row">
+            <span>Updated pledged total</span>
+            <strong id="previewPledgedTotal">€0</strong>
+          </div>
+          <div class="preview-row">
+            <span>Updated monthly total</span>
+            <strong id="previewMonthlyTotal">€0</strong>
+          </div>
+          <div class="preview-row">
+            <span>Updated contributors count</span>
+            <strong id="previewContributorsCount">0</strong>
+          </div>
+        </div>
+
+        <div class="preview-progress-block">
+          <div class="preview-progress-header">
+            <span>Updated progress toward common goal</span>
+            <strong id="previewProgressPercent">0%</strong>
+          </div>
+          <div class="progress-bar-container preview-progress-container">
+            <div class="progress-bar" id="previewProgressBar" style="width: 0%"></div>
+          </div>
+          <div class="preview-progress-caption">
+            <span id="previewProgressAmount">€320,000</span>
+            <span>of <span id="previewGoalAmount">€2,700,000</span></span>
+          </div>
+        </div>
+
+        <div class="preview-note">
+          <p><strong>One-time pledge:</strong> total impact equals the entered amount.</p>
+          <p><strong>Monthly pledge:</strong> total impact equals amount × remaining months until the selected end month and year.</p>
+        </div>
+      </aside>
+    </section>
+
+    <footer class="footer">
+      <p>&copy; 2026 Tenovice Project. All rights reserved.</p>
+    </footer>
+  </div>
+
+  <script src="config.js"></script>
+  <script src="pledge.js"></script>
+</body>
+</html>

@@ -1,0 +1,10 @@
+{
+  "name": "Terminal Test Monthly Updated",
+  "email": "terminal-monthly@example.com",
+  "contributors_count": 5,
+  "amount": 1500,
+  "is_monthly": true,
+  "end_month": 8,
+  "end_year": 2026,
+  "message": "Updated monthly backend test"
+}
