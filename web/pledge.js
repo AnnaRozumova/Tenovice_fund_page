@@ -1,7 +1,7 @@
 let currentStats = {
   pledged_total: 0,
   monthly_total: 0,
-  pledgers_count: 0,
+  contributors_count: 0,
 };
 
 let existingPledge = null;
@@ -127,7 +127,7 @@ function calculatePreview(values) {
 
   let updatedPledgedTotal = currentStats.pledged_total + pledgeImpact;
   let updatedMonthlyTotal = currentStats.monthly_total + monthlyEffect;
-  let updatedContributorsCount = currentStats.pledgers_count + values.contributors_count;
+  let updatedContributorsCount = currentStats.contributors_count + values.contributors_count;
 
   if (isEditMode && existingPledge) {
     updatedPledgedTotal =
@@ -137,7 +137,7 @@ function calculatePreview(values) {
       currentStats.monthly_total - getMonthlyEffect(existingPledge) + monthlyEffect;
 
     updatedContributorsCount =
-      currentStats.pledgers_count - getContributorsCount(existingPledge) + values.contributors_count;
+      currentStats.contributors_count - getContributorsCount(existingPledge) + values.contributors_count;
   }
 
   const updatedProgressAmount = CONFIG.CURRENT_BALANCE + updatedPledgedTotal;
@@ -202,7 +202,7 @@ async function loadStats() {
     currentStats = {
       pledged_total: Number(data.pledged_total || 0),
       monthly_total: Number(data.monthly_total || 0),
-      pledgers_count: Number(data.pledgers_count || 0),
+      contributors_count: Number(data.contributors_count || 0),
     };
   } catch (error) {
     console.error('Error loading stats:', error);

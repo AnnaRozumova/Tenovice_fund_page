@@ -1,33 +1,13 @@
-"""Docstring"""
-import json
+"""Return a single pledge by email — the caller's own, projected to an allowlist."""
 import os
-from decimal import Decimal
 
 import boto3
 from boto3.dynamodb.conditions import Key
 
+from utils.response import response
 
 dynamodb = boto3.resource("dynamodb")
 table = dynamodb.Table(os.environ["PLEDGES_TABLE_NAME"])
-
-
-class DecimalEncoder(json.JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, Decimal):
-            if obj % 1 == 0:
-                return int(obj)
-            return float(obj)
-        return super().default(obj)
-
-
-def response(status_code: int, body: dict) -> dict:
-    return {
-        "statusCode": status_code,
-        "headers": {
-            "Content-Type": "application/json",
-        },
-        "body": json.dumps(body, cls=DecimalEncoder),
-    }
 
 
 # Fields the caller is allowed to see about their own pledge. The raw DynamoDB

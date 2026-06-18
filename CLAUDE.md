@@ -81,9 +81,9 @@ Primary key `pledgeID` (String). GSI `EmailIndex` on `email` (projection ALL) fo
 - `monthly_total` — sum of monthly `amount`
 - `updated_at`
 
-> **Known mismatch:** the frontend (`web/main.js`, `web/pledge.js`) reads `pledgers_count` for the
-> supporters headline, but the backend stores `contributors_count` → supporters shows 0. Canonicalizing
-> on `contributors_count` is planned (see `dev_history.md`).
+> **`contributors_count`** is the single canonical field for the supporters total, used end-to-end
+> (DynamoDB `STATS` → `GET /stats` → `web/main.js` + `web/pledge.js`). The old frontend `pledgers_count`
+> reads were removed in B2.
 
 ## Pledge math (keep the JS preview ↔ Python save in lockstep)
 
@@ -96,10 +96,10 @@ Defined in `web/pledge.js` (live preview) **and** `services/pledges_api/src/hand
 
 ## JSON encoding note
 
-`get_stats`, `list_pledges`, and `get_pledge_by_email` each define their **own** local `DecimalEncoder` +
-`_response()`. `create_pledge` uses a bare `json.dumps` (no encoder). `services/pledges_api/src/utils/
-response.py` exists but is **empty** — there is no shared util yet. Unifying one shared
-`response()`/`DecimalEncoder` is planned (see `dev_history.md`).
+All handlers return JSON through the **shared** `services/pledges_api/src/utils/response.py`
+(`response(status, body)` + `DecimalEncoder`). The encoder serializes DynamoDB `Decimal` as `int` when
+whole, else `float` (EUR amounts and counts display as integers). Don't reintroduce per-handler encoders —
+unified in B2.
 
 ## Privacy & data model (Phase B — in progress)
 
@@ -108,10 +108,11 @@ payload), fixtures. `/pledges/by-email` is **hardened**: it returns only the cal
 to an explicit field allowlist (no `pledgeID`/timestamps) and matches email case-insensitively. `email` is
 stored **as-is (no hashing)**, used only to recognize a returning pledger so they can edit their own pledge.
 
-**Still planned (B2, B3):** canonicalize stats on `contributors_count` (frontend still reads
-`pledgers_count` — see "Known mismatch"); give `create_pledge` the shared response util; add upper bounds on
-`amount` and `contributors_count`. Tracked in `dev_history.md`. The test data in the live table will be
-reset when the privacy/data-model phase deploys.
+**Done (B2):** stats canonicalized on `contributors_count` end-to-end (removed the frontend `pledgers_count`
+reads); all four handlers route through the shared `utils/response.py` (no more per-handler encoders).
+
+**Still planned (B3):** add upper bounds on `amount` and `contributors_count`. Tracked in `dev_history.md`.
+The test data in the live table will be reset when the privacy/data-model phase deploys.
 
 ## Development commands
 

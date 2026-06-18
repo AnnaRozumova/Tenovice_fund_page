@@ -13,7 +13,7 @@ async function loadPledgesStats() {
 
     // Update pledges stats
     document.getElementById('pledgesTotal').textContent = formatCurrency(data.pledged_total || 0);
-    document.getElementById('pledgesCount').textContent = data.pledgers_count || 0;
+    document.getElementById('pledgesCount').textContent = data.contributors_count || 0;
     document.getElementById('pledgesMonthly').textContent = formatCurrency(data.monthly_total || 0);
 
   } catch (error) {

@@ -10,18 +10,9 @@ from botocore.exceptions import ClientError
 
 from domain.models import Pledge
 from domain.validation import validate_pledge_input
+from utils.response import response
 
 dynamodb = boto3.resource("dynamodb")
-
-
-def _response(status: int, body: dict):
-    return {
-        "statusCode": status,
-        "headers": {
-            "content-type": "application/json",
-        },
-        "body": json.dumps(body),
-    }
 
 
 def handler(event, context):
@@ -31,12 +22,12 @@ def handler(event, context):
     try:
         body = json.loads(event.get("body", "{}"))
     except json.JSONDecodeError:
-        return _response(400, {"error": "Invalid JSON in request body"})
+        return response(400, {"error": "Invalid JSON in request body"})
 
     try:
         validated = validate_pledge_input(body)
     except ValueError as e:
-        return _response(400, {"error": str(e)})
+        return response(400, {"error": str(e)})
 
     email = validated["email"]
 
@@ -49,7 +40,7 @@ def handler(event, context):
         return _create_new_pledge(table, validated)
 
     except ClientError as e:
-        return _response(500, {"error": "Failed to process pledge", "detail": str(e)})
+        return response(500, {"error": "Failed to process pledge", "detail": str(e)})
 
 
 def _find_pledge_by_email(table, email: str):
@@ -133,7 +124,7 @@ def _create_new_pledge(table, data: dict):
         monthly_total_delta=monthly_value,
     )
 
-    return _response(
+    return response(
         201,
         {
             "pledge_id": pledge.pledge_id,
@@ -218,7 +209,7 @@ def _update_existing_pledge(table, existing_pledge: Pledge, data: dict):
         monthly_total_delta=monthly_total_delta,
     )
 
-    return _response(
+    return response(
         200,
         {
             "pledge_id": existing_pledge.pledge_id,

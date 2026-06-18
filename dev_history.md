@@ -5,6 +5,38 @@ and how it was verified. Companion to `CLAUDE.md` (developer quick-start) and `d
 
 ---
 
+## 2026-06-19 — B2: canonicalize `contributors_count`; unify the response util
+
+**Why:** the supporters headline always showed **0** — the backend stores/serves `contributors_count`
+but the frontend read `pledgers_count` (a field that doesn't exist in the response). Separately, every
+handler defined its own `DecimalEncoder`/`_response`, and `create_pledge` had none (bare `json.dumps`).
+
+**What changed:**
+- **Shared response util:** filled the empty `services/pledges_api/src/utils/response.py` with a single
+  `response(status, body)` + `DecimalEncoder` (whole `Decimal` → `int`, else `float`; EUR/counts display as
+  integers). All **four** handlers (`get_stats`, `list_pledges`, `get_pledge_by_email`, `create_pledge`) now
+  import it; their local copies are gone. `create_pledge` now encodes Decimals correctly (it didn't before).
+- **Frontend canonicalization:** `web/main.js` (supporters headline) and `web/pledge.js` (init
+  `currentStats`, `loadStats`, both `calculatePreview` branches) now read `contributors_count`; no
+  `pledgers_count` remains in the codebase.
+- **Bug fixed in passing:** `list_pledges` had a local `response = table.scan()` that shadowed the new
+  imported `response` function — `return response(...)` would have raised at runtime. Renamed to
+  `scan_result`. (ruff caught it via the now-unused import.)
+- **Test:** added `tests/unit/test_response.py` (Decimal int/float encoding, envelope shape).
+- **Dev harness:** `serve.ps1` now sends `Cache-Control: no-store` so frontend edits show on a normal
+  refresh (no hard-reload needed during local iteration).
+
+**Verification:**
+```
+$ pwsh ./check.ps1
+== ruff ==     All checks passed!
+== pytest ==   42 passed
+Quality gate PASSED
+```
+Confirmed in the running site: the supporters headline now shows the real count (19) instead of 0.
+
+---
+
 ## 2026-06-19 — B1: drop `name`; harden the email-based edit flow (no hashing)
 
 **Why:** privacy. Names are never needed (contact happens off-site) and never displayed, so the safest
@@ -129,9 +161,9 @@ Test data in the live table will be reset when this phase deploys.
 1. ~~**Drop `name`**~~ — done (B1).
 2. ~~**Harden `/pledges/by-email`**~~ — done (B1).
 3. ~~Keep `email` as-is (no hashing)~~ — confirmed/kept (B1).
-4. **Canonicalize stats on `contributors_count`** (remove frontend `pledgers_count` reads). *(B2)*
-5. Add **one shared `response()`/`DecimalEncoder` util** for all handlers. *(B2)*
-6. Add **upper bounds** on `amount` and `contributors_count`. *(B3)*
+4. ~~**Canonicalize stats on `contributors_count`**~~ — done (B2).
+5. ~~**One shared `response()`/`DecimalEncoder` util**~~ — done (B2).
+6. Add **upper bounds** on `amount` and `contributors_count`. *(B3 — next)*
 
 Followed by: a one-command local quality gate (ruff + pytest/moto), editable numbers via a `CONFIG` row +
 admin endpoint, CZ/EN i18n, calculator UX, the post-pledge payment page, then AWS deploy + custom domain.
