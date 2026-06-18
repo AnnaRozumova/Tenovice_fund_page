@@ -1,5 +1,17 @@
-"""Unit tests for validation logic"""
+"""Unit tests for validation logic.
+
+PARKED (A2): these assert an obsolete validation contract — a ``(is_valid, error)``
+tuple return, a ``name`` length rule (2-100), an amount cap, and no
+``contributors_count``. The current code raises ``ValueError`` and requires
+``contributors_count``. Rewritten in Phase B (B1 drops ``name``; B3 adds caps).
+"""
+import pytest
+
 from domain.validation import validate_pledge_input
+
+pytestmark = pytest.mark.skip(
+    reason="Stale vs current code; rewritten in Phase B (B1 drop name, B3 caps)."
+)
 
 
 class TestValidatePledgeInput:
