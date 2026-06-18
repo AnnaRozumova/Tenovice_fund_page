@@ -13,6 +13,11 @@ MAX_AMOUNT = Decimal("100000")
 MAX_CONTRIBUTORS_COUNT = 5
 MAX_MESSAGE_LENGTH = 500
 
+# The campaign breakdown directions, by stable identifier key. The CONFIG row
+# (read by get_config, written by update_config) stores these keys + amounts;
+# the localized CZ/EN labels live in the frontend i18n dictionary, not the DB.
+BREAKDOWN_KEYS = ("new_gompa", "sangha_house", "basecamp_north")
+
 
 def _require_non_empty_string(data: dict, field: str) -> str:
     value = data.get(field)
@@ -59,6 +64,27 @@ def _require_positive_int(data: dict, field: str, maximum: int | None = None) ->
 
     if maximum is not None and int_value > maximum:
         raise ValueError(f"'{field}' must not exceed {maximum}")
+
+    return int_value
+
+
+def _require_non_negative_int(data: dict, field: str) -> int:
+    value = data.get(field)
+
+    if value is None:
+        raise ValueError(f"'{field}' is required")
+
+    # bool is a subclass of int — reject it explicitly so True/False don't sneak through.
+    if isinstance(value, bool):
+        raise ValueError(f"'{field}' must be an integer")
+
+    try:
+        int_value = int(value)
+    except (ValueError, TypeError):
+        raise ValueError(f"'{field}' must be an integer")
+
+    if int_value < 0:
+        raise ValueError(f"'{field}' must not be negative")
 
     return int_value
 
@@ -141,3 +167,47 @@ def validate_pledge_input(data: dict) -> dict:
         validated["end_year"] = None
 
     return validated
+
+
+def validate_config_input(data: dict) -> dict:
+    """Validate an admin CONFIG update: balance, goal, and the 3-direction breakdown.
+
+    Amounts are whole EUR (ints). ``current_balance`` may be 0; ``fundraising_goal``
+    must be > 0. The breakdown must list exactly the known direction keys, each with
+    a non-negative amount — display labels are not stored (they live in the i18n dict).
+    """
+    current_balance = _require_non_negative_int(data, "current_balance")
+
+    fundraising_goal = _require_non_negative_int(data, "fundraising_goal")
+    if fundraising_goal < 1:
+        raise ValueError("'fundraising_goal' must be greater than 0")
+
+    breakdown_raw = data.get("breakdown")
+    if not isinstance(breakdown_raw, list) or not breakdown_raw:
+        raise ValueError("'breakdown' is required and must be a non-empty list")
+
+    breakdown = []
+    seen_keys = set()
+    for item in breakdown_raw:
+        if not isinstance(item, dict):
+            raise ValueError("each 'breakdown' item must be an object with 'key' and 'amount'")
+
+        key = item.get("key")
+        if key not in BREAKDOWN_KEYS:
+            raise ValueError(f"'breakdown' key must be one of: {', '.join(BREAKDOWN_KEYS)}")
+        if key in seen_keys:
+            raise ValueError(f"duplicate 'breakdown' key: {key}")
+        seen_keys.add(key)
+
+        amount = _require_non_negative_int(item, "amount")
+        breakdown.append({"key": key, "amount": amount})
+
+    if seen_keys != set(BREAKDOWN_KEYS):
+        missing = ", ".join(k for k in BREAKDOWN_KEYS if k not in seen_keys)
+        raise ValueError(f"'breakdown' is missing required key(s): {missing}")
+
+    return {
+        "current_balance": current_balance,
+        "fundraising_goal": fundraising_goal,
+        "breakdown": breakdown,
+    }

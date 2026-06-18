@@ -5,6 +5,49 @@ and how it was verified. Companion to `CLAUDE.md` (developer quick-start) and `d
 
 ---
 
+## 2026-06-19 — C2: protected `POST /config` + admin page
+
+**Why:** C1 made the campaign numbers readable from a `CONFIG` row but nothing could write them. C2 adds
+the admin write path so Anna can edit the balance / goal / breakdown without a code change — guarded by a
+single shared secret (decision D6; Cognito would be overkill for one trusted editor).
+
+**What changed:**
+- **New write handler** `handlers/update_config.py` — authorizes via a bearer token compared to the
+  `ADMIN_SECRET` env var with a **constant-time** compare (`hmac.compare_digest`); **fails closed** (no
+  secret configured → every request 401). On success validates the body and `put_item`s the `CONFIG` row.
+  The secret is never logged.
+- **Validation** (`domain/validation.py`): `validate_config_input` + `BREAKDOWN_KEYS` (the canonical
+  direction keys) + helper `_require_non_negative_int`. Rules: `current_balance` ≥ 0, `fundraising_goal`
+  ≥ 1, `breakdown` must list exactly the 3 known keys, each with a non-negative whole-EUR amount.
+- **Infra:** `UpdateConfigFn` (Python 3.11, **read-write** grant) + `POST /config` route. `ADMIN_SECRET`
+  is injected from the deploy environment (`os.environ`), which the CI/CD pipeline (D13) sources from SSM /
+  Secrets Manager — never committed; defaults to empty (fail closed). CORS already allowed `POST` + `*`
+  headers, so the `Authorization` header needs no change.
+- **Frontend:** `web/admin.html` + `web/admin.js` — an internal admin tool (plain English; public-site
+  i18n is D1). Paste the secret, prefill from `GET /config`, edit, save via `POST /config`; a `401` shows
+  "Wrong or missing secret".
+- **Tests:** `tests/integration/test_update_config.py` (401 on missing/empty/wrong secret, fail-closed when
+  unset, 200 writes the row, 400 on bad body/JSON) + config-validation cases in `tests/unit/test_validation.py`.
+
+**What did NOT change:** no breakdown *display* by direction (= D3), no i18n, no change to the B3 pledge
+caps, no pledge-endpoint changes.
+
+**Verification:**
+```
+$ pwsh ./check.ps1
+== ruff ==     All checks passed!
+== pytest ==   66 passed   (was 51 → +15: 7 handler auth/write + 8 config-validation)
+Quality gate PASSED
+```
+CDK Python compiles; `admin.js` passes `node --check`; `/admin.html` + `/admin.js` serve locally (200).
+`grep` confirms `ADMIN_SECRET` is only ever read from the environment — no secret value in the repo.
+`/code-review` of the diff: no findings. **Not deployed** — `POST`/`GET /config` go live in Phase F; until
+then the admin page's prefill falls back to defaults and the save has no endpoint to reach.
+
+**This completes Phase C** (C1 read · C2 admin write).
+
+---
+
 ## 2026-06-19 — C1: CONFIG row + `GET /config`; frontend reads it
 
 **Why:** the campaign numbers shown to visitors — current balance, the goal, and the 3-direction
@@ -226,11 +269,13 @@ the `pledgers_count` mismatch.
 
 ---
 
-## Planned next (after Phase B)
+## Planned next (after Phase C)
 
-**Phase B is complete** (B1 privacy · B2 stats + shared response util · B3 input caps). The data-model
-hardening was done early, while only test data exists. Test data in the live table will be reset when this
-deploys (Phase F).
+**Phases B and C are complete.** B (B1 privacy · B2 stats + shared response util · B3 input caps) hardened
+the data model early, while only test data exists. C (C1 read · C2 admin write) made the campaign numbers
+editable data behind `GET`/`POST /config`. Test data in the live table will be reset when this deploys
+(Phase F).
 
-Next: editable numbers via a `CONFIG` row + admin endpoint (Phase C; the B3 caps move there), CZ/EN i18n,
-calculator UX, the post-pledge payment page, then AWS deploy + custom domain.
+Next: CZ/EN i18n (D1), calculator UX (D2; the B3 caps' frontend mirror lands here), goal-breakdown display
++ dw-connect link (D3), responsive pass (D4), the post-pledge payment page (E1), then AWS deploy + seed the
+real `CONFIG` (F) and custom domain (G).
