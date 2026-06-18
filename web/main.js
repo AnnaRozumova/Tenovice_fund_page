@@ -24,8 +24,11 @@ async function loadPledgesStats() {
   }
 }
 
-// Update progress bar
+// Render the balance, goal, and progress bar from CONFIG (live values from /config)
 function updateProgressBar() {
+  document.getElementById('currentBalance').textContent = formatCurrency(CONFIG.CURRENT_BALANCE);
+  document.getElementById('fundraisingGoal').textContent = formatCurrency(CONFIG.FUNDRAISING_GOAL);
+
   const progress = calculateProgress(CONFIG.CURRENT_BALANCE, CONFIG.FUNDRAISING_GOAL);
   const progressBar = document.getElementById('progressBar');
   const progressPercent = document.getElementById('progressPercent');
@@ -48,6 +51,7 @@ function setupPledgeButton() {
 
 // Initialize app
 async function init() {
+  await loadConfig();
   updateProgressBar();
   await loadPledgesStats();
   setupPledgeButton();

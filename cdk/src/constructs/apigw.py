@@ -71,3 +71,13 @@ class ApiConstruct(Construct):
                     handler=handlers.get_pledge_by_email,
                 ),
             )
+
+        if handlers.get_config:
+            self.http_api.add_routes(
+                path="/config",
+                methods=[apigwv2.HttpMethod.GET],
+                integration=integrations.HttpLambdaIntegration(
+                    "GetConfigIntegration",
+                    handler=handlers.get_config,
+                ),
+            )

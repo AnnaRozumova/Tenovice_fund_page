@@ -441,6 +441,7 @@ function setupLookup() {
 }
 
 async function initPledgePage() {
+  await loadConfig();
   setupLookup();
   setupForm();
   $('previewGoalAmount').textContent = formatCurrency(CONFIG.FUNDRAISING_GOAL);

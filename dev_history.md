@@ -5,6 +5,46 @@ and how it was verified. Companion to `CLAUDE.md` (developer quick-start) and `d
 
 ---
 
+## 2026-06-19 — C1: CONFIG row + `GET /config`; frontend reads it
+
+**Why:** the campaign numbers shown to visitors — current balance, the goal, and the 3-direction
+breakdown — were hardcoded in `web/config.js` (and the balance/goal duplicated as static text in
+`index.html`). Changing them meant a code edit + redeploy. C1 moves them behind an API so they become
+editable data; the admin write path follows in C2.
+
+**What changed:**
+- **New read handler** `services/pledges_api/src/handlers/get_config.py` — mirrors `get_stats`: reads the
+  `CONFIG` row (`pledgeID="CONFIG"`) and returns `current_balance` / `fundraising_goal` / `breakdown`.
+  If the row (or a field) is absent it returns **documented defaults**, so the endpoint and the site work
+  before the row is ever seeded. The breakdown stores **stable keys** (`new_gompa`, `sangha_house`,
+  `basecamp_north`) + amounts — localized labels stay in the frontend i18n dict (D3), not the data layer.
+  Balance/goal/breakdown amounts are **provisional** pending Anna's confirmation.
+- **Infra:** `GetConfigFn` (Python 3.11, read-only DynamoDB grant) + `GET /config` route, wired the same
+  guarded way as the other handlers (`LambdaHandlers.get_config` Optional → route added only when present).
+- **Frontend:** `loadConfig()` in `web/config.js` fetches `/config` and overrides the now-fallback
+  `CURRENT_BALANCE` / `FUNDRAISING_GOAL` / `BREAKDOWN`; on any failure the hardcoded defaults stand so the
+  page still renders. `main.js` and `pledge.js` `await loadConfig()` before reading those numbers. The
+  homepage balance **and** goal are now rendered from `CONFIG` (goal gained `id="fundraisingGoal"`), so
+  changing the row visibly changes the page — not just the progress bar.
+- **Test:** `tests/integration/test_get_config.py` (defaults when no row · stored row returned · amounts
+  serialize as `int`).
+
+**What did NOT change:** no admin/write path (`POST /config` + `admin.html` = C2), no breakdown *display*
+by direction (= D3), no i18n, no change to the B3 validation caps (they move into `CONFIG` later).
+
+**Verification:**
+```
+$ pwsh ./check.ps1
+== ruff ==     All checks passed!
+== pytest ==   51 passed   (was 48 → +3 from test_get_config)
+Quality gate PASSED
+```
+CDK Python compiles (`py_compile`); JS passes `node --check`; site serves locally (`/`, `/pledge.html`
+→ 200). `/code-review` of the diff: no findings. Not deployed — the live dev API still lacks `/config`,
+so `loadConfig()` falls back to defaults locally (expected; real end-to-end is Phase F).
+
+---
+
 ## 2026-06-19 — B3: validation hardening (input caps)
 
 **Why:** before this, `amount` and `contributors_count` had only a lower bound (≥ 1) and `message` had no
