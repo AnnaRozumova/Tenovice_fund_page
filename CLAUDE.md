@@ -1,207 +1,170 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
+Guidance for Claude Code (claude.ai/code) and any developer working in this repository.
+It describes what the codebase **actually is today**. For the running change log and what's planned
+next, see `dev_history.md`; for a fuller architecture write-up, see `docs/architecture.md`.
 
-## Project Overview
+## Project overview
 
-A fundraising calculator application built with AWS CDK (Python) and Lambda functions. Currently implements a statistics endpoint for tracking pledge data stored in DynamoDB.
+A small public-facing **fundraising pledge calculator** for the Tenovice project. A visitor enters an
+intended gift (one-time, or monthly until a chosen month/year) and sees live how it moves the campaign
+total toward the goal. Pledges are stored **anonymously** so other visitors are inspired to add their
+own. **No real money moves through the site** — a pledge is a public promise; bank/QR payment details
+are shown afterwards so the person sends the money themselves.
 
-## Development Commands
-
-All commands should be run from the project root unless otherwise specified.
-
-### Infrastructure (CDK)
-
-```bash
-# Install CDK dependencies
-make infra-install
-
-# Bootstrap AWS account/region (first-time setup)
-make infra-bootstrap
-
-# Synthesize CloudFormation template
-make infra-synth
-
-# Show diff against deployed stack
-make infra-diff
-
-# Deploy to AWS
-make infra-deploy
-
-# Destroy stack
-make infra-destroy
-```
-
-### CDK-specific (from cdk/ directory)
-
-```bash
-cd cdk
-
-# Format Python code with ruff
-make fmt
-
-# Lint Python code with ruff
-make lint
-```
-
-### Testing
-
-```bash
-# Run all tests
-make test
-
-# Run unit tests only
-make test-unit
-
-# Run integration tests only
-make test-integration
-
-# Run tests with coverage report
-make test-coverage
-```
-
-For E2E tests against deployed API:
-```bash
-export API_URL="https://your-api-id.execute-api.region.amazonaws.com"
-cd tests
-pip install -r requirements-e2e.txt
-pytest e2e/ -v
-```
+Scale: < 1000 friends, infrequent visits → deliberately cheap, simple, low-ops. Works on phone + desktop.
 
 ## Architecture
 
-The application uses a modular CDK construct pattern:
+```
+Browser (static HTML/CSS/JS on S3)
+   │  fetch() JSON over HTTPS
+   ▼
+API Gateway (HTTP API)  ─►  Lambda (Python 3.11)  ─►  DynamoDB (one table)
+   ▲
+AWS CDK (Python) describes & deploys all of the above.
+```
 
-- **Stack** (`cdk/src/stack.py`): Main stack that orchestrates all constructs
-- **Config** (`cdk/src/constructs/config.py`): Reads configuration from `cdk.json` context
-- **DynamoDb** (`cdk/src/constructs/dynamodb.py`): Creates the Pledges table with partition key `pledgeID`
-- **Lambdas** (`cdk/src/constructs/lambdas.py`): Defines Lambda functions and grants DynamoDB permissions
-- **Api** (`cdk/src/constructs/apigw.py`): Creates API Gateway V2 (HTTP API) with CORS and route integrations
-- **S3Website** (`cdk/src/constructs/s3_website.py`): Creates S3 bucket configured for static website hosting and deploys web files
+- **Frontend** `web/` — plain HTML/CSS/JS, **no build step** (no npm, no bundler). `<html lang="cs">`.
+- **Backend** `services/pledges_api/src/` — framework-agnostic Python (NOT a web framework). Handlers are
+  plain Lambda `handler(event, context)` functions; domain logic kept framework-free on purpose.
+- **Infra** `cdk/` — one stack (`FundraisingCalculatorStack`) = DynamoDB + Lambdas + HTTP API + S3 site.
+  One `cdk deploy` provisions the whole app.
 
-### Data Flow
+### CDK constructs (`cdk/src/`)
+- `app.py` — CDK app entry point (`python -m src.app`, set in `cdk.json`).
+- `stack.py` — `FundraisingCalculatorStack`; wires the constructs, outputs `HttpApiUrl`.
+- `constructs/config.py` — `AppConfig`, reads context from `cdk.json` (`stage`, `project_name`,
+  `api_name`, `pledges_table_name`).
+- `constructs/dynamodb.py` — Pledges table (PK `pledgeID`) + `EmailIndex` GSI on `email` (projection ALL).
+- `constructs/lambdas.py` — the 4 Lambda functions (Python 3.11), code from `../services/pledges_api/src`.
+- `constructs/apigw.py` — HTTP API + CORS (`GET`/`POST`/`OPTIONS`, origins `*`) + the 4 routes.
+- `constructs/s3_website.py` — public S3 static-website bucket; deploys `../web` and outputs the URL.
 
-1. Lambda functions are sourced from `services/pledges_api/src/`
-2. Lambda code is packaged during CDK synth/deploy
-3. API Gateway routes requests to Lambda integrations
-4. Lambdas interact with DynamoDB table (name passed via environment variable `PLEDGES_TABLE_NAME`)
+## API — 4 endpoints
 
-### Current Implementation Status
+| Method | Path | Handler (`services/pledges_api/src/handlers/`) | Notes |
+|--------|------|-----------------------------------------------|-------|
+| GET | `/stats` | `get_stats.handler` | reads the `STATS` row (running totals) |
+| GET | `/pledges` | `list_pledges.handler` | `scan`; returns anonymous fields only |
+| POST | `/pledges` | `create_pledge.handler` | upsert by email; adjusts `STATS` |
+| GET | `/pledges/by-email` | `get_pledge_by_email.handler` | query `EmailIndex`; **returns the full record today (incl. `name`+`email`) — see "Planned change"** |
 
-The API has been simplified to 3 endpoints:
-- **GET /stats** - Get aggregated statistics
-- **POST /pledges** - Upsert a pledge (create or update by email)
-- **GET /pledges** - List all pledges anonymously
+**Live dev API:** `https://tbaulwfk46.execute-api.eu-central-1.amazonaws.com` (region `eu-central-1`).
+It is **deployed and holds test data** — `GET /stats` →
+`{"pledged_total": 228150.0, "contributors_count": 19.0, "monthly_total": 12200.0}`.
 
-### Email-Based Upsert Pattern
+### Email-based upsert
+Email is the identity key. The first `POST /pledges` with an email creates a pledge; a later POST with the
+same email updates it (the delta is applied to `STATS`). No tokens / auth — knowing the email is the only
+ownership proof.
 
-The application uses email as the unique identifier for pledges:
-- **First submission:** Creates a new pledge
-- **Subsequent submissions with same email:** Updates the existing pledge
-- Stats are automatically adjusted (delta calculation for updates)
-- No tokens or authentication required - email is the key
+## Data model (DynamoDB, one table)
 
-### Anonymity and Privacy
+Primary key `pledgeID` (String). GSI `EmailIndex` on `email` (projection ALL) for upsert-by-email.
 
-**Data storage:**
-- Name and email are stored in DynamoDB (for internal use/contact)
-- GSI (Global Secondary Index) on email field enables upsert by email
+**Pledge row** (`domain/models.py` → `Pledge`):
+- `pledgeID` — UUID
+- `name` — pledger name *(stored today; **being removed** — see "Planned change")*
+- `email` — lowercased
+- `contributors_count` — how many people this one pledge represents (≥ 1)
+- `amount` — pledge amount in EUR (one-time amount, or per-month amount if monthly)
+- `is_monthly` — bool
+- `campaign_total` — the pledge's total campaign impact (see "Pledge math"); stored so it stays stable as months pass
+- `created_at` — ISO timestamp
+- `updated_at?` — ISO timestamp, present only after an update
+- `message?` — optional free text
+- `end_month?`, `end_year?` — present only for monthly pledges
 
-**Public APIs:**
-- All public endpoints (GET /pledges, GET /pledges/{id}) return ONLY anonymous data
-- Personal information (name, email) is NEVER exposed
-- Public responses include: amount, is_monthly, created_at, updated_at, message
+**`STATS` row** (`pledgeID="STATS"`) — running totals:
+- `pledged_total` — sum of `campaign_total`
+- `contributors_count` — sum of pledges' `contributors_count`
+- `monthly_total` — sum of monthly `amount`
+- `updated_at`
+
+> **Known mismatch:** the frontend (`web/main.js`, `web/pledge.js`) reads `pledgers_count` for the
+> supporters headline, but the backend stores `contributors_count` → supporters shows 0. Canonicalizing
+> on `contributors_count` is planned (see `dev_history.md`).
+
+## Pledge math (keep the JS preview ↔ Python save in lockstep)
+
+Defined in `web/pledge.js` (live preview) **and** `services/pledges_api/src/handlers/create_pledge.py`
+(saved totals) — **change one, change both**.
+- **One-time:** campaign impact = `amount`; monthly effect = 0.
+- **Monthly** (now until `end_month/end_year` inclusive):
+  `remaining_months = (end_year - cur_year)*12 + (end_month - cur_month) + 1` (floored at 0);
+  campaign impact = `amount * remaining_months`; monthly effect = `amount`.
+
+## JSON encoding note
+
+`get_stats`, `list_pledges`, and `get_pledge_by_email` each define their **own** local `DecimalEncoder` +
+`_response()`. `create_pledge` uses a bare `json.dumps` (no encoder). `services/pledges_api/src/utils/
+response.py` exists but is **empty** — there is no shared util yet. Unifying one shared
+`response()`/`DecimalEncoder` is planned (see `dev_history.md`).
+
+## Planned change (next — privacy & data model)
+
+The data model is **about to change** for privacy; do not treat the current shape as final:
+- **Drop `name`** from the model, validation, handlers, and frontend (never stored, never displayed).
+- **Harden `/pledges/by-email`** to return only the caller's own pledge fields — today it returns the full
+  record, which leaks PII.
+- Keep `email` stored **as-is (no hashing)**, used only to recognize a returning pledger so they can edit
+  their own pledge.
+- Canonicalize stats on `contributors_count`; add a shared response util; add upper bounds on `amount`
+  and `contributors_count`.
+
+This is tracked in `dev_history.md`. The test data in the live table and the repo-root `*.json` fixtures
+will be reset as part of that change.
+
+## Development commands
+
+From the repo root (`Makefile`):
+```bash
+make test              # all tests (services/pledges_api)
+make test-unit         # unit tests
+make test-integration  # integration tests (moto, mocked AWS)
+make test-coverage     # tests + coverage report
+
+make infra-install     # install CDK deps
+make infra-synth       # cdk synth
+make infra-diff        # cdk diff vs deployed
+make infra-deploy      # cdk deploy
+make infra-destroy     # cdk destroy
+make infra-bootstrap   # cdk bootstrap (first time per account/region)
+```
+From `cdk/` (`cdk/Makefile`): `make fmt` / `make lint` run **ruff** on `cdk/src`.
+
+### Running the tests directly
+```bash
+cd services/pledges_api
+pip install -r requirements-test.txt   # pytest, pytest-cov, moto, boto3
+python -m pytest tests/ -v
+```
+`tests/conftest.py` puts `src/` on the import path. Layout:
+- `tests/unit/` — pure logic (models, validation), no AWS.
+- `tests/integration/` — handlers against moto-mocked DynamoDB.
+- repo-root `tests/e2e/` — hits a **deployed** API (`API_URL` env var); not run by `make test`.
+
+> There is **no single `make check` / lint gate for `services/pledges_api` yet** — adding one is planned.
 
 ## Configuration
 
-Configuration is managed via CDK context in `cdk/cdk.json`:
+- **CDK context** (`cdk/cdk.json`): `stage` (default `dev`), `project_name` (`fundraising-calculator`),
+  `api_name` (`fundraising-api`), `pledges_table_name` (`Pledges`). Table name =
+  `{project_name}-{stage}-{pledges_table_name}`. Override with `--context key=value`.
+- **dev stage** → DynamoDB + S3 use `RemovalPolicy.DESTROY` (and S3 `auto_delete_objects`); any other
+  stage → `RETAIN`.
+- **Frontend** (`web/config.js`): `API_URL`, plus hardcoded `CURRENT_BALANCE` and `FUNDRAISING_GOAL`
+  (EUR). Moving these editable numbers into a DynamoDB `CONFIG` row + `/config` endpoint is planned.
 
-- `stage`: Deployment stage (default: "dev")
-- `project_name`: Project prefix for resource names (default: "fundraising-calculator")
-- `api_name`: API Gateway name (default: "fundraising-api")
-- `pledges_table_name`: DynamoDB table suffix (default: "Pledges")
+## Adding a new Lambda handler
+1. Create the handler in `services/pledges_api/src/handlers/`.
+2. Define the `_lambda.Function` in `LambdasConstruct` (`cdk/src/constructs/lambdas.py`) and add it to the
+   `LambdaHandlers` dataclass (mark Optional if not always wired).
+3. Grant DynamoDB access (`table.grant_read_data` / `grant_read_write_data`).
+4. Add the route in `ApiConstruct` (`cdk/src/constructs/apigw.py`); update CORS methods if needed.
 
-Override context values using `cdk deploy --context key=value` or by modifying `cdk.json`.
-
-### Environment-specific Behavior
-
-- **dev stage**: DynamoDB table uses `RemovalPolicy.DESTROY` (table deleted on stack deletion)
-- **other stages**: DynamoDB table uses `RemovalPolicy.RETAIN` (table preserved on stack deletion)
-
-## Adding New Lambda Handlers
-
-To add a new Lambda function:
-
-1. Create handler in `services/pledges_api/src/handlers/`
-2. Add function definition to `LambdasConstruct` in `cdk/src/constructs/lambdas.py`
-3. Add function to `LambdaHandlers` dataclass (set Optional if not always present)
-4. Grant necessary DynamoDB permissions (e.g., `table.grant_read_data()`, `table.grant_write_data()`)
-5. Add API route in `ApiConstruct` in `cdk/src/constructs/apigw.py`
-6. Update CORS methods in `apigw.py` if adding POST/PUT/DELETE
-
-## DynamoDB Schema
-
-Table name: `{project_name}-{stage}-{pledges_table_name}`
-
-**Primary key:**
-- Partition key: `pledgeID` (String, UUID)
-
-**Global Secondary Index (GSI):**
-- Index name: `EmailIndex`
-- Partition key: `email` (String)
-- Enables upsert by email (query existing pledge before create/update)
-
-**Special record:** `pledgeID="STATS"` stores aggregate statistics:
-- `pledged_total`: Total amount pledged (number)
-- `pledgers_count`: Number of unique pledgers (number)
-- `monthly_total`: Monthly recurring total (number)
-- `updated_at`: Timestamp of last update (string)
-
-**Regular pledge records contain:**
-- `pledgeID`: Unique identifier (UUID)
-- `name`: Pledger name (2-100 chars)
-- `email`: Pledger email (normalized to lowercase)
-- `amount`: Pledge amount (1-1,000,000)
-- `is_monthly`: Boolean indicating if monthly recurring
-- `created_at`: ISO timestamp
-- `updated_at`: ISO timestamp (only present after updates)
-- `message`: Optional message (max 500 chars)
-
-## Testing
-
-Test structure:
-- `services/pledges_api/tests/unit/` - Unit tests (no AWS dependencies)
-- `services/pledges_api/tests/integration/` - Integration tests (mocked AWS via moto)
-- `tests/e2e/` - End-to-end tests (against deployed API)
-
-See `TESTING_PLAN.md` for detailed testing strategy and `services/pledges_api/tests/README.md` for test setup instructions.
-
-## Frontend / Static Website
-
-**Location:** `web/` directory
-
-The frontend is a plain HTML/CSS/JS static website hosted on S3:
-- No build tools required (no npm, no Vite)
-- Automatically deployed via CDK when you run `make infra-deploy`
-- Files are uploaded from `web/` directory to S3 bucket
-
-**Configuration:** Edit `web/config.js`:
-- `API_URL` - Your API Gateway endpoint
-- `CURRENT_BALANCE` - Real money on account (hardcoded)
-- `FUNDRAISING_GOAL` - Target amount (hardcoded)
-
-**S3 Bucket:**
-- Bucket name: `{project_name}-{stage}-website`
-- Configured for static website hosting
-- Public read access enabled
-- Website URL output after deployment
-
-**To update website after changes:**
-```bash
-make infra-deploy  # Redeploys everything including website files
-```
-
-Or manually sync files:
-```bash
-aws s3 sync web/ s3://fundraising-calculator-dev-website --delete
-```
+## Conventions
+- Code, identifiers, comments, commit messages in **English**.
+- One change = one branch off `main`, named `NN-step-name` (digits + hyphens, **no spaces**);
+  branch name == PR name. One step = one branch = one PR.
