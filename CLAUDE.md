@@ -160,6 +160,16 @@ make check           # Unix / CI parity — assumes ruff + deps already installe
 `name` length, `pledgers_count`, no `contributors_count`) and get rewritten in the privacy/data-model
 phase. The locked pledge math is covered now in `tests/unit/test_pledge_math.py`.
 
+### Run the site locally
+
+```bash
+pwsh ./serve.ps1     # serves web/ at http://localhost:8000 (no build, no deploy; -Port to change)
+```
+
+The API base is a single config value — `CONFIG.API_URL` in `web/config.js` (defaults to the live dev
+API, so the calculator shows real data locally). See `web/README.md` for the plain `python -m http.server`
+fallback.
+
 ## Configuration
 
 - **CDK context** (`cdk/cdk.json`): `stage` (default `dev`), `project_name` (`fundraising-calculator`),
