@@ -66,8 +66,8 @@ Primary key `pledgeID` (String). GSI `EmailIndex` on `email` (projection ALL) fo
 **Pledge row** (`domain/models.py` → `Pledge`):
 - `pledgeID` — UUID
 - `email` — lowercased (the only identity field; never displayed, never on public endpoints)
-- `contributors_count` — how many people this one pledge represents (≥ 1)
-- `amount` — pledge amount in EUR (one-time amount, or per-month amount if monthly)
+- `contributors_count` — how many people this one pledge represents (1–5, cap provisional — see "Input caps")
+- `amount` — pledge amount in EUR (one-time amount, or per-month amount if monthly); 1–100,000
 - `is_monthly` — bool
 - `campaign_total` — the pledge's total campaign impact (see "Pledge math"); stored so it stays stable as months pass
 - `created_at` — ISO timestamp
@@ -101,18 +101,23 @@ All handlers return JSON through the **shared** `services/pledges_api/src/utils/
 whole, else `float` (EUR amounts and counts display as integers). Don't reintroduce per-handler encoders —
 unified in B2.
 
-## Privacy & data model (Phase B — in progress)
+## Privacy & data model (Phase B — complete)
 
-**Done (B1):** `name` is **dropped** everywhere — model, validation, handlers, frontend (form + summary +
+**B1:** `name` is **dropped** everywhere — model, validation, handlers, frontend (form + summary +
 payload), fixtures. `/pledges/by-email` is **hardened**: it returns only the caller's own pledge projected
 to an explicit field allowlist (no `pledgeID`/timestamps) and matches email case-insensitively. `email` is
 stored **as-is (no hashing)**, used only to recognize a returning pledger so they can edit their own pledge.
 
-**Done (B2):** stats canonicalized on `contributors_count` end-to-end (removed the frontend `pledgers_count`
+**B2:** stats canonicalized on `contributors_count` end-to-end (removed the frontend `pledgers_count`
 reads); all four handlers route through the shared `utils/response.py` (no more per-handler encoders).
 
-**Still planned (B3):** add upper bounds on `amount` and `contributors_count`. Tracked in `dev_history.md`.
-The test data in the live table will be reset when the privacy/data-model phase deploys.
+**B3 — input caps** (`domain/validation.py` constants): `amount` ≤ `MAX_AMOUNT` (100,000),
+`contributors_count` ≤ `MAX_CONTRIBUTORS_COUNT` (5), `message` ≤ `MAX_MESSAGE_LENGTH` (500 chars); min ≥ 1.
+Over-cap input is rejected with a clear error. Caps are **provisional** (the contributors cap pending a
+product decision on the multi-person-pledge feature) and move into the editable `CONFIG` row in Phase C.
+Caps are enforced **server-side only** for now; mirroring them in the form is deferred to D2.
+
+> The test data in the live table will be reset when the privacy/data-model phase deploys (Phase F).
 
 ## Development commands
 

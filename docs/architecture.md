@@ -130,7 +130,9 @@ Locked decisions for the phase (full rationale lives in the project's decision l
 3. ~~**Harden `/pledges/by-email`**~~ — **done (B1)**; returns only the caller's own pledge fields.
 4. ~~**Canonicalize stats on `contributors_count`**~~ — **done (B2)**; frontend `pledgers_count` reads removed.
 5. ~~**One shared `response()`/`DecimalEncoder` util**~~ — **done (B2)**; all four handlers use `utils/response.py`.
-6. **Add upper bounds** on `amount` and `contributors_count` (keeps `STATS` sane, anti-troll). *(B3)*
+6. ~~**Add upper bounds** on `amount` and `contributors_count`~~ — **done (B3)**; also `message` length.
+   Caps (`amount` ≤ 100,000, `contributors_count` ≤ 5, `message` ≤ 500) are provisional constants in
+   `domain/validation.py`, server-side only; they move to the `CONFIG` row in Phase C.
 
 Doing this early is cheap (only test data exists); it gets painful once real friends pledge. See
 `dev_history.md` for sequencing.
