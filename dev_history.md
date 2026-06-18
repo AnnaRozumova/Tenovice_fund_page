@@ -5,6 +5,44 @@ and how it was verified. Companion to `CLAUDE.md` (developer quick-start) and `d
 
 ---
 
+## 2026-06-19 — B1: drop `name`; harden the email-based edit flow (no hashing)
+
+**Why:** privacy. Names are never needed (contact happens off-site) and never displayed, so the safest
+place for a name is "not in the database." Done now, while only test data exists. Email stays as-is (no
+hashing — decision D3) purely to recognize a returning pledger.
+
+**What changed:**
+- **`name` dropped everywhere:** `domain/models.py` (`Pledge` field + both DynamoDB converters),
+  `domain/validation.py` (no longer required/accepted — silently ignored), `handlers/create_pledge.py`
+  (create + update; the `ExpressionAttributeNames` `#name` escape went away with it), and the frontend
+  (`web/pledge.html` form field + existing-pledge summary row; `web/pledge.js` form values, validation,
+  payload, populate). Fixtures `one_time.json` / `monthly_update.json` wiped.
+- **`/pledges/by-email` hardened:** instead of returning the raw DynamoDB item, it now projects an explicit
+  **field allowlist** (`email`, `contributors_count`, `amount`, `is_monthly`, `campaign_total`, `message`,
+  `end_month`, `end_year`) — internal fields like `pledgeID`/`created_at`/`updated_at` never leave the API.
+  The lookup also matches email **case-insensitively** (`.strip().lower()`), so a returning user finds their
+  pledge regardless of typed casing (creates store lowercased).
+- **Tests:** the three parked stale suites (`test_validation.py`, `test_models.py`,
+  `test_create_pledge.py`) were rewritten to the new no-`name` contract and **un-skipped**; added
+  `test_get_pledge_by_email.py` (allowlist projection, case-insensitive match, 404/400). E2E
+  `tests/e2e/test_api_pledges.py` rewritten against the real 4-endpoint contract (the old version targeted
+  non-existent `GET`/`PUT /pledges/{id}` routes and `pledgers_count`).
+
+**Verification:**
+```
+$ pwsh ./check.ps1
+== ruff ==     All checks passed!
+== pytest ==   37 passed   (0 skipped — all suites un-parked)
+Quality gate PASSED
+```
+`/code-review` of the diff: no findings. `grep` confirms no `name` field in source, frontend, or tests
+(only HTML `name="…"` form attributes remain).
+
+**Deferred to later B steps:** the frontend still reads `pledgers_count` (B2) and there are no upper bounds
+on `amount`/`contributors_count` yet (B3). A client-side email-format check is parked → D2.
+
+---
+
 ## 2026-06-19 — A3: frontend dev harness (run the site locally)
 
 **What changed:**
@@ -83,18 +121,17 @@ the `pledgers_count` mismatch.
 
 ---
 
-## Planned next (privacy & data-model hardening)
+## Planned next (privacy & data-model hardening — Phase B remaining)
 
 The data model changes early, while only test data exists (cheap now, painful once real friends pledge).
-Test data in the live table + the repo-root `*.json` fixtures will be reset as part of this work.
+Test data in the live table will be reset when this phase deploys.
 
-1. **Drop `name`** from the model, validation, handlers, and frontend (never stored, never displayed).
-2. **Harden `/pledges/by-email`** to return only the caller's own pledge fields (no PII leak).
-3. Keep `email` stored **as-is (no hashing)** — used only to recognize a returning pledger so they can
-   edit their own pledge.
-4. **Canonicalize stats on `contributors_count`** (remove frontend `pledgers_count` reads).
-5. Add **one shared `response()`/`DecimalEncoder` util** for all handlers.
-6. Add **upper bounds** on `amount` and `contributors_count`.
+1. ~~**Drop `name`**~~ — done (B1).
+2. ~~**Harden `/pledges/by-email`**~~ — done (B1).
+3. ~~Keep `email` as-is (no hashing)~~ — confirmed/kept (B1).
+4. **Canonicalize stats on `contributors_count`** (remove frontend `pledgers_count` reads). *(B2)*
+5. Add **one shared `response()`/`DecimalEncoder` util** for all handlers. *(B2)*
+6. Add **upper bounds** on `amount` and `contributors_count`. *(B3)*
 
 Followed by: a one-command local quality gate (ruff + pytest/moto), editable numbers via a `CONFIG` row +
 admin endpoint, CZ/EN i18n, calculator UX, the post-pledge payment page, then AWS deploy + custom domain.

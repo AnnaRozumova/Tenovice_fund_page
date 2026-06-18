@@ -83,8 +83,7 @@ Single DynamoDB table. PK `pledgeID` (String); GSI `EmailIndex` on `email` (proj
 | Field | Type | Notes |
 |-------|------|-------|
 | `pledgeID` | String | UUID |
-| `name` | String | *stored today; being removed (see "Planned direction")* |
-| `email` | String | lowercased |
+| `email` | String | lowercased; the only identity field (never displayed, never on public endpoints) |
 | `contributors_count` | Number | how many people one pledge represents (≥ 1) |
 | `amount` | Number | EUR; one-time amount, or per-month amount if monthly |
 | `is_monthly` | Bool | |
@@ -115,18 +114,20 @@ formula** — change one, change both.
 ## Privacy model
 
 The core rule: **all pledges are public, but all identities are private.**
-- Public endpoints (`/stats`, `/pledges`) expose **anonymous fields only** — never `name`/`email`.
+- Public endpoints (`/stats`, `/pledges`) expose **anonymous fields only** — never `email`.
 - `email` is used **only** to recognize a returning pledger so they can edit their own pledge.
+- `name` is **not stored** (dropped in B1). `/pledges/by-email` returns only the caller's own pledge,
+  projected to an explicit field allowlist (no `pledgeID`/timestamps).
 
 ## Planned direction (privacy & data-model hardening)
 
-Locked decisions for the next phase (full rationale lives in the project's decision log):
-1. **Drop `name`** everywhere — never stored, never displayed; contact happens off-site.
+Locked decisions for the phase (full rationale lives in the project's decision log):
+1. ~~**Drop `name`** everywhere~~ — **done (B1)**; never stored, never displayed, contact happens off-site.
 2. **Store `email` as-is — no hashing.** A hash of a known email is only pseudonymous, so it adds an
    irreversible migration for marginal gain; minimization comes from storing no names + keeping email off
    every public endpoint.
-3. **Harden `/pledges/by-email`** to return only the caller's own pledge fields (no other people's data).
-4. **Canonicalize stats on `contributors_count`** (remove the frontend `pledgers_count` reads).
+3. ~~**Harden `/pledges/by-email`**~~ — **done (B1)**; returns only the caller's own pledge fields.
+4. **Canonicalize stats on `contributors_count`** (remove the frontend `pledgers_count` reads). *(B2)*
 5. **One shared `response()`/`DecimalEncoder` util** (today each handler defines its own; `create_pledge`
    has none; `utils/response.py` is empty).
 6. **Add upper bounds** on `amount` and `contributors_count` (keeps `STATS` sane, anti-troll).

@@ -1,172 +1,171 @@
 """Unit tests for validation logic.
 
-PARKED (A2): these assert an obsolete validation contract — a ``(is_valid, error)``
-tuple return, a ``name`` length rule (2-100), an amount cap, and no
-``contributors_count``. The current code raises ``ValueError`` and requires
-``contributors_count``. Rewritten in Phase B (B1 drops ``name``; B3 adds caps).
+Rewritten in Phase B (B1): ``validate_pledge_input`` raises ``ValueError`` on bad
+input and returns a validated dict; ``name`` is no longer accepted or required.
+Upper-bound caps are added in B3.
 """
+from decimal import Decimal
+
 import pytest
 
 from domain.validation import validate_pledge_input
-
-pytestmark = pytest.mark.skip(
-    reason="Stale vs current code; rewritten in Phase B (B1 drop name, B3 caps)."
-)
 
 
 class TestValidatePledgeInput:
     """Test validate_pledge_input function"""
 
-    def test_valid_pledge(self):
-        """Test validation with valid pledge data"""
+    def test_valid_one_time_pledge(self):
         data = {
-            "name": "John Doe",
             "email": "john@example.com",
+            "contributors_count": 2,
             "amount": 100,
-            "is_monthly": True,
-            "message": "Great cause!"
+            "is_monthly": False,
+            "message": "Great cause!",
         }
-        is_valid, error = validate_pledge_input(data)
-        assert is_valid is True
-        assert error is None
+        result = validate_pledge_input(data)
+        assert "name" not in result
+        assert result["email"] == "john@example.com"
+        assert result["contributors_count"] == 2
+        assert result["amount"] == Decimal("100")
+        assert result["is_monthly"] is False
+        assert result["message"] == "Great cause!"
+        assert result["end_month"] is None
+        assert result["end_year"] is None
 
-    def test_valid_pledge_without_message(self):
-        """Test validation with valid pledge data (no message)"""
+    def test_valid_monthly_pledge(self):
         data = {
-            "name": "Jane Smith",
             "email": "jane@example.com",
+            "contributors_count": 1,
             "amount": 50,
+            "is_monthly": True,
+            "end_month": 12,
+            "end_year": 2030,
+        }
+        result = validate_pledge_input(data)
+        assert result["is_monthly"] is True
+        assert result["end_month"] == 12
+        assert result["end_year"] == 2030
+
+    def test_name_is_ignored(self):
+        """A ``name`` in the payload is silently dropped, not stored."""
+        data = {
+            "name": "Should Be Ignored",
+            "email": "john@example.com",
+            "contributors_count": 1,
+            "amount": 100,
             "is_monthly": False,
         }
-        is_valid, error = validate_pledge_input(data)
-        assert is_valid is True
-        assert error is None
+        result = validate_pledge_input(data)
+        assert "name" not in result
 
-    def test_missing_required_field(self):
-        """Test validation fails when required field is missing"""
-        data = {
-            "name": "John Doe",
-            "email": "john@example.com",
-            "is_monthly": True,
-        }
-        is_valid, error = validate_pledge_input(data)
-        assert is_valid is False
-        assert "amount" in error
+    def test_email_required(self):
+        data = {"contributors_count": 1, "amount": 100, "is_monthly": False}
+        with pytest.raises(ValueError, match="email"):
+            validate_pledge_input(data)
 
-    def test_name_too_short(self):
-        """Test validation fails when name is too short"""
+    def test_email_normalized_to_lowercase(self):
         data = {
-            "name": "A",
-            "email": "john@example.com",
+            "email": "John.Doe@EXAMPLE.COM",
+            "contributors_count": 1,
             "amount": 100,
-            "is_monthly": True,
+            "is_monthly": False,
         }
-        is_valid, error = validate_pledge_input(data)
-        assert is_valid is False
-        assert "at least 2 characters" in error
+        result = validate_pledge_input(data)
+        assert result["email"] == "john.doe@example.com"
 
-    def test_name_too_long(self):
-        """Test validation fails when name is too long"""
+    @pytest.mark.parametrize(
+        "email",
+        ["notanemail", "missing@domain", "@nodomain.com", "spaces in@email.com"],
+    )
+    def test_invalid_email_format(self, email):
         data = {
-            "name": "A" * 101,
-            "email": "john@example.com",
+            "email": email,
+            "contributors_count": 1,
             "amount": 100,
-            "is_monthly": True,
+            "is_monthly": False,
         }
-        is_valid, error = validate_pledge_input(data)
-        assert is_valid is False
-        assert "less than 100 characters" in error
+        with pytest.raises(ValueError, match="email"):
+            validate_pledge_input(data)
 
-    def test_invalid_email_format(self):
-        """Test validation fails with invalid email"""
-        test_cases = [
-            "notanemail",
-            "missing@domain",
-            "@nodomain.com",
-            "no@domain",
-            "spaces in@email.com",
-        ]
-        for email in test_cases:
-            data = {
-                "name": "John Doe",
-                "email": email,
-                "amount": 100,
-                "is_monthly": True,
-            }
-            is_valid, error = validate_pledge_input(data)
-            assert is_valid is False, f"Email {email} should be invalid"
-            assert "email" in error.lower()
+    def test_missing_amount(self):
+        data = {"email": "john@example.com", "contributors_count": 1, "is_monthly": False}
+        with pytest.raises(ValueError, match="amount"):
+            validate_pledge_input(data)
 
-    def test_amount_too_low(self):
-        """Test validation fails when amount is too low"""
+    def test_amount_must_be_positive(self):
         data = {
-            "name": "John Doe",
             "email": "john@example.com",
+            "contributors_count": 1,
             "amount": 0,
-            "is_monthly": True,
+            "is_monthly": False,
         }
-        is_valid, error = validate_pledge_input(data)
-        assert is_valid is False
-        assert "at least 1" in error
+        with pytest.raises(ValueError, match="amount"):
+            validate_pledge_input(data)
 
-    def test_amount_too_high(self):
-        """Test validation fails when amount is too high"""
+    def test_amount_not_a_number(self):
         data = {
-            "name": "John Doe",
             "email": "john@example.com",
-            "amount": 1000001,
-            "is_monthly": True,
-        }
-        is_valid, error = validate_pledge_input(data)
-        assert is_valid is False
-        assert "1,000,000" in error
-
-    def test_amount_not_integer(self):
-        """Test validation fails when amount is not an integer"""
-        data = {
-            "name": "John Doe",
-            "email": "john@example.com",
+            "contributors_count": 1,
             "amount": "not a number",
-            "is_monthly": True,
+            "is_monthly": False,
         }
-        is_valid, error = validate_pledge_input(data)
-        assert is_valid is False
-        assert "valid integer" in error
+        with pytest.raises(ValueError, match="amount"):
+            validate_pledge_input(data)
 
-    def test_is_monthly_not_boolean(self):
-        """Test validation fails when is_monthly is not boolean"""
+    def test_contributors_count_required(self):
+        data = {"email": "john@example.com", "amount": 100, "is_monthly": False}
+        with pytest.raises(ValueError, match="contributors_count"):
+            validate_pledge_input(data)
+
+    def test_contributors_count_must_be_at_least_one(self):
         data = {
-            "name": "John Doe",
             "email": "john@example.com",
+            "contributors_count": 0,
+            "amount": 100,
+            "is_monthly": False,
+        }
+        with pytest.raises(ValueError, match="contributors_count"):
+            validate_pledge_input(data)
+
+    def test_is_monthly_must_be_boolean(self):
+        data = {
+            "email": "john@example.com",
+            "contributors_count": 1,
             "amount": 100,
             "is_monthly": "yes",
         }
-        is_valid, error = validate_pledge_input(data)
-        assert is_valid is False
-        assert "boolean" in error
+        with pytest.raises(ValueError, match="is_monthly"):
+            validate_pledge_input(data)
 
-    def test_message_too_long(self):
-        """Test validation fails when message is too long"""
+    def test_monthly_requires_end_date(self):
         data = {
-            "name": "John Doe",
             "email": "john@example.com",
+            "contributors_count": 1,
             "amount": 100,
             "is_monthly": True,
-            "message": "x" * 501,
         }
-        is_valid, error = validate_pledge_input(data)
-        assert is_valid is False
-        assert "500 characters" in error
+        with pytest.raises(ValueError, match="end_month"):
+            validate_pledge_input(data)
 
-    def test_message_not_string(self):
-        """Test validation fails when message is not a string"""
+    def test_monthly_end_date_not_in_past(self):
         data = {
-            "name": "John Doe",
             "email": "john@example.com",
+            "contributors_count": 1,
             "amount": 100,
             "is_monthly": True,
+            "end_month": 1,
+            "end_year": 2000,
+        }
+        with pytest.raises(ValueError, match="past"):
+            validate_pledge_input(data)
+
+    def test_message_must_be_string(self):
+        data = {
+            "email": "john@example.com",
+            "contributors_count": 1,
+            "amount": 100,
+            "is_monthly": False,
             "message": 123,
         }
-        is_valid, error = validate_pledge_input(data)
-        assert is_valid is False
-        assert "string" in error
+        with pytest.raises(ValueError, match="message"):
+            validate_pledge_input(data)

@@ -61,9 +61,8 @@ def validate_pledge_input(data: dict) -> dict:
     """
     Validate pledge creation input.
     """
-    name = _require_non_empty_string(data, "name")
     email = _require_non_empty_string(data, "email").lower()
-    
+
     if not EMAIL_RE.match(email):
         raise ValueError("'email' must be a valid email address")
 
@@ -76,7 +75,6 @@ def validate_pledge_input(data: dict) -> dict:
         raise ValueError("'message' must be a string if provided")
 
     validated = {
-        "name": name,
         "email": email,
         "contributors_count": contributors_count,
         "amount": amount,

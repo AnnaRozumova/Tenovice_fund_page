@@ -1,16 +1,11 @@
 """Unit tests for domain models.
 
-PARKED (A2): these build ``Pledge(...)`` without the now-required
-``contributors_count`` field, so they fail against the current model. Rewritten in
-Phase B (B1 also drops ``name``).
+Rewritten in Phase B (B1): ``name`` is gone from the model; pledges carry
+``contributors_count`` and ``campaign_total``.
 """
-import pytest
+from decimal import Decimal
 
 from domain.models import Pledge
-
-pytestmark = pytest.mark.skip(
-    reason="Stale vs current model (missing contributors_count); rewritten in Phase B (B1)."
-)
 
 
 class TestPledgeModel:
@@ -20,20 +15,22 @@ class TestPledgeModel:
         """Test converting Pledge to DynamoDB item format with message"""
         pledge = Pledge(
             pledge_id="test-123",
-            name="John Doe",
             email="john@example.com",
-            amount=100,
+            contributors_count=2,
+            amount=Decimal("100"),
             is_monthly=True,
             created_at="2024-01-01T00:00:00Z",
-            message="Test message"
+            campaign_total=Decimal("1200"),
+            message="Test message",
         )
 
         item = pledge.to_dynamodb_item()
 
         assert item["pledgeID"] == "test-123"
-        assert item["name"] == "John Doe"
+        assert "name" not in item
         assert item["email"] == "john@example.com"
-        assert item["amount"] == 100
+        assert item["contributors_count"] == 2
+        assert item["amount"] == Decimal("100")
         assert item["is_monthly"] is True
         assert item["created_at"] == "2024-01-01T00:00:00Z"
         assert item["message"] == "Test message"
@@ -42,12 +39,12 @@ class TestPledgeModel:
         """Test converting Pledge to DynamoDB item format without message"""
         pledge = Pledge(
             pledge_id="test-456",
-            name="Jane Smith",
             email="jane@example.com",
-            amount=50,
+            contributors_count=1,
+            amount=Decimal("50"),
             is_monthly=False,
             created_at="2024-01-02T00:00:00Z",
-            message=None
+            message=None,
         )
 
         item = pledge.to_dynamodb_item()
@@ -60,20 +57,21 @@ class TestPledgeModel:
         """Test creating Pledge from DynamoDB item with message"""
         item = {
             "pledgeID": "test-789",
-            "name": "Bob Johnson",
             "email": "bob@example.com",
-            "amount": 200,
+            "contributors_count": 3,
+            "amount": Decimal("200"),
             "is_monthly": True,
             "created_at": "2024-01-03T00:00:00Z",
-            "message": "Happy to help"
+            "campaign_total": Decimal("2400"),
+            "message": "Happy to help",
         }
 
         pledge = Pledge.from_dynamodb_item(item)
 
         assert pledge.pledge_id == "test-789"
-        assert pledge.name == "Bob Johnson"
         assert pledge.email == "bob@example.com"
-        assert pledge.amount == 200
+        assert pledge.contributors_count == 3
+        assert pledge.amount == Decimal("200")
         assert pledge.is_monthly is True
         assert pledge.created_at == "2024-01-03T00:00:00Z"
         assert pledge.message == "Happy to help"
@@ -82,11 +80,12 @@ class TestPledgeModel:
         """Test creating Pledge from DynamoDB item without message"""
         item = {
             "pledgeID": "test-000",
-            "name": "Alice Brown",
             "email": "alice@example.com",
-            "amount": 75,
+            "contributors_count": 1,
+            "amount": Decimal("75"),
             "is_monthly": False,
-            "created_at": "2024-01-04T00:00:00Z"
+            "created_at": "2024-01-04T00:00:00Z",
+            "campaign_total": Decimal("75"),
         }
 
         pledge = Pledge.from_dynamodb_item(item)
@@ -97,20 +96,21 @@ class TestPledgeModel:
         """Test that Pledge → DynamoDB → Pledge preserves data"""
         original = Pledge(
             pledge_id="roundtrip-test",
-            name="Test User",
             email="test@example.com",
-            amount=150,
+            contributors_count=4,
+            amount=Decimal("150"),
             is_monthly=True,
             created_at="2024-01-05T00:00:00Z",
-            message="Roundtrip test"
+            campaign_total=Decimal("1800"),
+            message="Roundtrip test",
         )
 
         item = original.to_dynamodb_item()
         restored = Pledge.from_dynamodb_item(item)
 
         assert restored.pledge_id == original.pledge_id
-        assert restored.name == original.name
         assert restored.email == original.email
+        assert restored.contributors_count == original.contributors_count
         assert restored.amount == original.amount
         assert restored.is_monthly == original.is_monthly
         assert restored.created_at == original.created_at

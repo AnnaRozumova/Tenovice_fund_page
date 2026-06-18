@@ -112,7 +112,6 @@ def _create_new_pledge(table, data: dict):
 
     pledge = Pledge(
         pledge_id=pledge_id,
-        name=data["name"],
         email=data["email"],
         contributors_count=contributors_count,
         amount=amount,
@@ -170,7 +169,6 @@ def _update_existing_pledge(table, existing_pledge: Pledge, data: dict):
     contributors_delta = new_contributors_count - old_contributors_count
 
     set_parts = [
-        "#name = :name",
         "email = :email",
         "amount = :amount",
         "is_monthly = :is_monthly",
@@ -181,7 +179,6 @@ def _update_existing_pledge(table, existing_pledge: Pledge, data: dict):
     remove_parts = []
 
     expression_values = {
-        ":name": data["name"],
         ":email": data["email"],
         ":amount": new_amount,
         ":is_monthly": new_is_monthly,
@@ -189,7 +186,6 @@ def _update_existing_pledge(table, existing_pledge: Pledge, data: dict):
         ":campaign_total": new_campaign_total,
         ":updated_at": updated_at,
     }
-    expression_names = {"#name": "name"}
 
     if new_message is not None:
         set_parts.append("message = :message")
@@ -213,7 +209,6 @@ def _update_existing_pledge(table, existing_pledge: Pledge, data: dict):
         Key={"pledgeID": existing_pledge.pledge_id},
         UpdateExpression=update_expression,
         ExpressionAttributeValues=expression_values,
-        ExpressionAttributeNames=expression_names,
     )
 
     _adjust_stats(
