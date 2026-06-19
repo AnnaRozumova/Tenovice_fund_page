@@ -68,6 +68,27 @@ def _require_non_negative_int(data: dict, field: str) -> int:
     return int_value
 
 
+def _require_positive_int(data: dict, field: str) -> int:
+    value = data.get(field)
+
+    if value is None:
+        raise ValueError(f"'{field}' is required")
+
+    # bool is a subclass of int — reject it explicitly so True/False don't sneak through.
+    if isinstance(value, bool):
+        raise ValueError(f"'{field}' must be an integer")
+
+    try:
+        int_value = int(value)
+    except (ValueError, TypeError) as exc:
+        raise ValueError(f"'{field}' must be an integer") from exc
+
+    if int_value < 1:
+        raise ValueError(f"'{field}' must be greater than 0")
+
+    return int_value
+
+
 def _require_bool(data: dict, field: str) -> bool:
     value = data.get(field)
 
@@ -75,6 +96,43 @@ def _require_bool(data: dict, field: str) -> bool:
         raise ValueError(f"'{field}' is required and must be a boolean")
 
     return value
+
+
+def _validate_end_date(data: dict, *, reject_past: bool) -> tuple[int, int]:
+    """Parse and validate a monthly end month/year, returning ``(end_month, end_year)``.
+
+    Shared by the pledge save (``reject_past=True`` — a saved monthly pledge can't
+    already be over) and the calculator (``reject_past=False`` — a past date simply
+    yields zero remaining months in the read-only simulation, not an error).
+    """
+    end_month = data.get("end_month")
+    end_year = data.get("end_year")
+
+    if end_month is None:
+        raise ValueError("'end_month' is required when 'is_monthly' is true")
+    if end_year is None:
+        raise ValueError("'end_year' is required when 'is_monthly' is true")
+
+    try:
+        end_month = int(end_month)
+    except (ValueError, TypeError) as exc:
+        raise ValueError("'end_month' must be an integer") from exc
+
+    try:
+        end_year = int(end_year)
+    except (ValueError, TypeError) as exc:
+        raise ValueError("'end_year' must be an integer") from exc
+
+    if end_month < 1 or end_month > 12:
+        raise ValueError("'end_month' must be between 1 and 12")
+
+    if reject_past:
+        now = datetime.now(timezone.utc)
+        if (end_year, end_month) < (now.year, now.month):
+            raise ValueError("'end_month' and 'end_year' must not be in the past")
+
+    return end_month, end_year
+
 
 def validate_pledge_input(data: dict) -> dict:
     """
@@ -102,34 +160,7 @@ def validate_pledge_input(data: dict) -> dict:
     }
 
     if is_monthly:
-        end_month = data.get("end_month")
-        end_year = data.get("end_year")
-
-        if end_month is None:
-            raise ValueError("'end_month' is required when 'is_monthly' is true")
-        if end_year is None:
-            raise ValueError("'end_year' is required when 'is_monthly' is true")
-
-        try:
-            end_month = int(end_month)
-        except (ValueError, TypeError) as exc:
-            raise ValueError("'end_month' must be an integer") from exc
-
-        try:
-            end_year = int(end_year)
-        except (ValueError, TypeError) as exc:
-            raise ValueError("'end_year' must be an integer") from exc
-
-        if end_month < 1 or end_month > 12:
-            raise ValueError("'end_month' must be between 1 and 12")
-
-        now = datetime.now(timezone.utc)
-        current_year = now.year
-        current_month = now.month
-
-        if (end_year, end_month) < (current_year, current_month):
-            raise ValueError("'end_month' and 'end_year' must not be in the past")
-
+        end_month, end_year = _validate_end_date(data, reject_past=True)
         validated["end_month"] = end_month
         validated["end_year"] = end_year
     else:
@@ -140,6 +171,36 @@ def validate_pledge_input(data: dict) -> dict:
 
         validated["end_month"] = None
         validated["end_year"] = None
+
+    return validated
+
+
+def validate_calculate_input(data: dict) -> dict:
+    """Validate calculator/simulator input for the read-only ``POST /calculate``.
+
+    Differs from a saved pledge: it carries ``people`` (a what-if group size, no
+    upper cap — D15) and ``amount`` is the per-person amount; there is no email or
+    message. A monthly end date in the past is **not** rejected — the simulation
+    floors remaining months at 0 (the zero-months case). ``amount`` is uncapped
+    here: the calculator stores nothing, so MAX_AMOUNT (which guards STATS) doesn't
+    apply, and a large group what-if must stay expressible.
+    """
+    people = _require_positive_int(data, "people")
+    amount = _require_positive_decimal(data, "amount")
+    is_monthly = _require_bool(data, "is_monthly")
+
+    validated = {
+        "people": people,
+        "amount": amount,
+        "is_monthly": is_monthly,
+        "end_month": None,
+        "end_year": None,
+    }
+
+    if is_monthly:
+        end_month, end_year = _validate_end_date(data, reject_past=False)
+        validated["end_month"] = end_month
+        validated["end_year"] = end_year
 
     return validated
 

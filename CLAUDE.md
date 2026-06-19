@@ -38,11 +38,11 @@ AWS CDK (Python) describes & deploys all of the above.
 - `constructs/config.py` — `AppConfig`, reads context from `cdk.json` (`stage`, `project_name`,
   `api_name`, `pledges_table_name`).
 - `constructs/dynamodb.py` — Pledges table (PK `pledgeID`) + `EmailIndex` GSI on `email` (projection ALL).
-- `constructs/lambdas.py` — the 6 Lambda functions (Python 3.11), code from `../services/pledges_api/src`.
-- `constructs/apigw.py` — HTTP API + CORS (`GET`/`POST`/`OPTIONS`, origins `*`) + the 6 routes.
+- `constructs/lambdas.py` — the 7 Lambda functions (Python 3.11), code from `../services/pledges_api/src`.
+- `constructs/apigw.py` — HTTP API + CORS (`GET`/`POST`/`OPTIONS`, origins `*`) + the 7 routes.
 - `constructs/s3_website.py` — public S3 static-website bucket; deploys `../web` and outputs the URL.
 
-## API — 6 endpoints
+## API — 7 endpoints
 
 | Method | Path | Handler (`services/pledges_api/src/handlers/`) | Notes |
 |--------|------|-----------------------------------------------|-------|
@@ -52,6 +52,7 @@ AWS CDK (Python) describes & deploys all of the above.
 | GET | `/pledges/by-email` | `get_pledge_by_email.handler` | query `EmailIndex` (case-insensitive); returns **only the caller's own pledge, projected to an allowlist** (no `pledgeID`/timestamps) |
 | GET | `/config` | `get_config.handler` | reads the `CONFIG` row (editable balance / goal / breakdown); documented defaults if the row is absent (C1) |
 | POST | `/config` | `update_config.handler` | **admin-only** write of the `CONFIG` row; shared-secret bearer token, constant-time compare, fails closed (C2) |
+| POST | `/calculate` | `calculate.handler` | **read-only** what-if simulator (D2a); computes impact + projection vs goal from the shared pledge math; reads `STATS`/`CONFIG`, writes nothing, no auth |
 
 **Live dev API:** `https://tbaulwfk46.execute-api.eu-central-1.amazonaws.com` (region `eu-central-1`).
 It is **deployed and holds test data** — `GET /stats` →
@@ -98,14 +99,21 @@ Primary key `pledgeID` (String). GSI `EmailIndex` on `email` (projection ALL) fo
 > used end-to-end (DynamoDB `STATS` → `GET /stats` → `web/main.js`). The old frontend `pledgers_count`
 > reads were removed in B2; since B4 the value is a **pledge count** (1 per supporter), not a sum of group sizes.
 
-## Pledge math (keep the JS preview ↔ Python save in lockstep)
+## Pledge math (single source of truth — `domain/pledge_math.py`)
 
-Defined in `web/pledge.js` (live preview) **and** `services/pledges_api/src/handlers/create_pledge.py`
-(saved totals) — **change one, change both**.
+The formula lives **once**, in `services/pledges_api/src/domain/pledge_math.py`
+(`calculate_pledge_values`, `calculate_remaining_months`), and is imported by both the save path
+(`handlers/create_pledge.py`) and the read-only simulator (`handlers/calculate.py`, `POST /calculate`) so
+the two can never drift (decision D8/D15). Moved out of `create_pledge.py` in D2a.
 - **One-time:** campaign impact = `amount`; monthly effect = 0.
 - **Monthly** (now until `end_month/end_year` inclusive):
   `remaining_months = (end_year - cur_year)*12 + (end_month - cur_month) + 1` (floored at 0);
   campaign impact = `amount * remaining_months`; monthly effect = `amount`.
+- **Simulator** (`/calculate`) multiplies by the what-if group size: `total_impact = people * amount *
+  (remaining_months if monthly else 1)`.
+
+> `web/pledge.js` still carries its own JS copy of this math for the live preview. That copy is **removed in
+> D2**, when the calculator switches to calling `POST /calculate` and only *displays* the result (no JS math).
 
 ## JSON encoding note
 

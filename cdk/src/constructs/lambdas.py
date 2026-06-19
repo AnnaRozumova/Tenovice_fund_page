@@ -19,6 +19,7 @@ class LambdaHandlers:
     get_pledge_by_email: Optional[_lambda.Function] = None
     get_config: Optional[_lambda.Function] = None
     update_config: Optional[_lambda.Function] = None
+    calculate: Optional[_lambda.Function] = None
 
 
 class LambdasConstruct(Construct):
@@ -126,6 +127,23 @@ class LambdasConstruct(Construct):
 
         pledges_table.grant_read_write_data(update_config)
 
+        # Read-only simulator (POST /calculate): computes a what-if impact and reads
+        # the STATS/CONFIG rows for the projection — it never writes (D15).
+        calculate = _lambda.Function(
+            self,
+            "CalculateFn",
+            function_name=f"{config.project_name}-{config.stage}-calculate",
+            runtime=_lambda.Runtime.PYTHON_3_11,
+            handler="handlers.calculate.handler",
+            code=_lambda.Code.from_asset("../services/pledges_api/src"),
+            timeout=Duration.seconds(10),
+            environment={
+                "PLEDGES_TABLE_NAME": pledges_table.table_name,
+            },
+        )
+
+        pledges_table.grant_read_data(calculate)
+
         self.handlers = LambdaHandlers(
             get_stats=get_stats,
             create_pledge=create_pledge,
@@ -133,4 +151,5 @@ class LambdasConstruct(Construct):
             get_pledge_by_email=get_pledge_by_email,
             get_config=get_config,
             update_config=update_config,
+            calculate=calculate,
         )
