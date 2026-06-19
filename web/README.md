@@ -144,7 +144,7 @@ top-right of each page. All user-facing strings live in **one dictionary**, `web
 
 - **Markup** is tagged with `data-i18n="key"` (text), `data-i18n-html="key"` (HTML, e.g. `<strong>`),
   or `data-i18n-placeholder` / `data-i18n-alt` / `data-i18n-aria-label`.
-- **JS-rendered** strings use `t('key')` (with `{param}` interpolation, e.g. `t('pledge.statusMonthly', { n: 6 })`).
+- **JS-rendered** strings use `t('key')` (with `{param}` interpolation, e.g. `t('sim.durationMonths', { n: 6 })`).
 - The chosen language is stored in `localStorage` and `<html lang>` follows it. Adding a third language
   (the structure is DE-ready) = add a `de` block with the same keys.
 - `admin.html` is an internal tool and stays English (not part of the public i18n).

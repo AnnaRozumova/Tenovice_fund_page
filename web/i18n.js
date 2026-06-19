@@ -4,11 +4,11 @@
 //
 // Usage in markup:
 //   <h1 data-i18n="index.heroTitle"></h1>            -> sets textContent
-//   <p  data-i18n-html="pledge.monthlyNote"></p>     -> sets innerHTML (for <strong> etc.)
+//   <p  data-i18n-html="some.htmlKey"></p>           -> sets innerHTML (for <strong> etc.)
 //   <input data-i18n-placeholder="pledge.msgPlaceholder">
 //   <img data-i18n-alt="common.logoAlt">
 //   <div data-i18n-aria-label="common.langLabel">
-// Usage in JS: t('pledge.btnSaving'), t('pledge.statusMonthly', { n: 6 }).
+// Usage in JS: t('pledge.btnSaving'), t('sim.durationMonths', { n: 6 }).
 
 const TRANSLATIONS = {
   cs: {
@@ -69,15 +69,42 @@ const TRANSLATIONS = {
     'pledge.selectMonth': 'Vyber měsíc',
     'pledge.msgPlaceholder': 'Nepovinná zpráva k tvému příslibu',
     'pledge.save': 'Uložit příslib',
-    'pledge.previewHeading': 'Náhled',
-    'pledge.previewImpact': 'Celkový přínos příslibu',
-    'pledge.previewMonthlyEffect': 'Měsíční příslib',
-    'pledge.previewPledgedTotal': 'Nově celkem přislíbeno',
-    'pledge.previewMonthlyTotal': 'Nově měsíčně přislíbeno',
-    'pledge.previewProgress': 'Postup k cíli',
     'pledge.previewOf': 'z',
-    'pledge.monthlyNote':
-      '<strong>Měsíční příslib:</strong> celkový přínos se vypočítá jako částka × počet zbývajících měsíců do zvoleného měsíce a roku ukončení.',
+
+    // Calculator page — simulator (zones 1+2) + pledge zone (zone 3), D2
+    'index.supportersStrip':
+      'Už přislíbilo <strong>{count} přátel</strong> v celkové hodnotě <strong>{amount}</strong>. Přidej se k nim.',
+    'sim.heading': 'Spočítej svůj přínos',
+    'sim.sub':
+      'Co kdyby přispělo víc přátel jako ty? Zadej hodnoty a klikni na Spočítat — hned uvidíš, jaký dopad na cíl byste měli společně. Nic se neukládá, je to jen orientační výpočet.',
+    'sim.peopleLabel': 'Kolik lidí jako ty?',
+    'sim.peopleHint': 'Kolik přátel by přispělo stejnou částkou (orientačně, bez omezení).',
+    'sim.amountPerPerson': 'Částka na osobu (EUR)',
+    'sim.typeLabel': 'Typ příspěvku',
+    'sim.oneTime': 'Jednorázově',
+    'sim.monthly': 'Měsíčně',
+    'sim.calcButton': 'Spočítat',
+    'sim.btnCalculating': 'Počítám…',
+    'sim.resultEyebrow': 'Výsledek kalkulačky',
+    'sim.totalImpact': 'Společný přínos pro sbírku',
+    'sim.monthlyExtra': 'Měsíčně navíc',
+    'sim.duration': 'Přispíváte po dobu',
+    'sim.durationMonths': '{n} měsíců',
+    'sim.projectedProgress': 'Postup k cíli po tomto scénáři',
+    'sim.legendNow': 'teď {pct} %',
+    'sim.legendScenario': 'tvůj scénář +{pct} %',
+    'sim.placeholder': 'Zadej hodnoty a klikni na Spočítat.',
+    'sim.peopleAmountOneTime': '{people} lidí × {amount} jednorázově',
+    'sim.peopleAmountMonthly': '{people} lidí × {amount} měsíčně',
+    'sim.errInputs': 'Zadej počet lidí a částku na osobu.',
+    'sim.errEndDate': 'Vyber měsíc a rok konce.',
+    'sim.errCalc': 'Výpočet se nepodařilo načíst. Zkus to prosím znovu.',
+    'pledge.zoneDivider': 'Teď přidej svůj vlastní příslib',
+    'pledge.zoneHeading': 'Přidej svůj příslib',
+    'pledge.zoneIntro':
+      'Toto je tvůj osobní příslib za jednoho člověka. E-mail už máš zadaný z předchozího kroku — slouží jen k rozpoznání tvého příslibu a nikde se nezobrazuje.',
+    'pledge.publicPromiseNote':
+      'Příslib je veřejný slib — žádné peníze přes web neposíláš. Po uložení uvidíš bankovní údaje a QR kódy.',
 
     // Months
     'month.1': 'Leden',
@@ -94,27 +121,18 @@ const TRANSLATIONS = {
     'month.12': 'Prosinec',
 
     // Pledge page — dynamic (JS)
-    'pledge.formTitleCreate': 'Tvůj příslib',
     'pledge.formTitleEdit': 'Uprav svůj příslib',
-    'pledge.formIntroCreate': 'Všechny hodnoty náhledu níže se aktualizují živě, než uložíš.',
     'pledge.formIntroEdit':
-      'Upravuješ existující příslib. Hodnoty náhledu nahrazují tvůj současný příslib v součtech.',
+      'Upravuješ svůj existující příslib. Po uložení nahradí tvůj současný příslib.',
     'pledge.typeMonthly': 'Měsíčně opakovaný',
     'pledge.typeOneTime': 'Jednorázový',
-    'pledge.modeCreate':
-      '<strong>Režim nového příslibu:</strong> náhled přičítá tento příslib k současným součtům.',
-    'pledge.modeEdit':
-      '<strong>Režim úprav:</strong> náhled nahrazuje tvůj existující příslib v současných součtech.',
     'pledge.btnChecking': 'Kontroluji…',
     'pledge.btnSaving': 'Ukládám…',
-    'pledge.statusEnterEmail': 'Pro začátek zadej e-mail.',
-    'pledge.statusMonthly': 'Celkový přínos se počítá z {n} zbývajících měsíců.',
-    'pledge.statusSelectEnd': 'Vyber měsíc a rok konce pro výpočet celkového přínosu.',
-    'pledge.statusEditOneTime': 'Upravuješ existující jednorázový příslib.',
-    'pledge.statusCreateOneTime': 'Vytváříš nový jednorázový příslib.',
-    'pledge.statusNoStats': 'Nepodařilo se načíst aktuální statistiky. Náhled nemusí být dostupný.',
     'pledge.errEmailRequired': 'Zadej prosím svůj e-mail.',
+    'pledge.errEmailFormat': 'Zadej prosím platný e-mail.',
     'pledge.errAmount': 'Částka musí být větší než 0.',
+    'pledge.errAmountMax': 'Částka nesmí přesáhnout {max}.',
+    'pledge.errMessageMax': 'Zpráva nesmí přesáhnout {max} znaků.',
     'pledge.errEndMonth': 'Měsíc konce musí být mezi 1 a 12.',
     'pledge.errEndYear': 'Zadej prosím platný rok konce.',
     'pledge.errEndPast': 'Datum konce měsíčního příslibu musí být v aktuálním nebo budoucím měsíci.',
@@ -188,15 +206,42 @@ const TRANSLATIONS = {
     'pledge.selectMonth': 'Select month',
     'pledge.msgPlaceholder': 'Optional message to accompany the pledge',
     'pledge.save': 'Save pledge',
-    'pledge.previewHeading': 'Live preview',
-    'pledge.previewImpact': 'Pledge total impact',
-    'pledge.previewMonthlyEffect': 'Monthly effect',
-    'pledge.previewPledgedTotal': 'Updated pledged total',
-    'pledge.previewMonthlyTotal': 'Updated monthly total',
-    'pledge.previewProgress': 'Updated progress toward common goal',
     'pledge.previewOf': 'of',
-    'pledge.monthlyNote':
-      '<strong>Monthly pledge:</strong> total impact equals amount × remaining months until the selected end month and year.',
+
+    // Calculator page — simulator (zones 1+2) + pledge zone (zone 3), D2
+    'index.supportersStrip':
+      'Already <strong>{count} friends</strong> have pledged <strong>{amount}</strong>. Join them.',
+    'sim.heading': 'Calculate your impact',
+    'sim.sub':
+      'What if more friends gave like you? Enter the values and press Calculate to see your combined impact on the goal. Nothing is saved — it is only an estimate.',
+    'sim.peopleLabel': 'How many people like you?',
+    'sim.peopleHint': 'How many friends would give the same amount (illustrative, no limit).',
+    'sim.amountPerPerson': 'Amount per person (EUR)',
+    'sim.typeLabel': 'Contribution type',
+    'sim.oneTime': 'One-time',
+    'sim.monthly': 'Monthly',
+    'sim.calcButton': 'Calculate',
+    'sim.btnCalculating': 'Calculating…',
+    'sim.resultEyebrow': 'Calculator result',
+    'sim.totalImpact': 'Combined impact on the campaign',
+    'sim.monthlyExtra': 'Monthly addition',
+    'sim.duration': 'Contributing for',
+    'sim.durationMonths': '{n} months',
+    'sim.projectedProgress': 'Progress to goal in this scenario',
+    'sim.legendNow': 'now {pct}%',
+    'sim.legendScenario': 'your scenario +{pct}%',
+    'sim.placeholder': 'Enter values and press Calculate.',
+    'sim.peopleAmountOneTime': '{people} people × {amount} one-time',
+    'sim.peopleAmountMonthly': '{people} people × {amount} monthly',
+    'sim.errInputs': 'Enter the number of people and the amount per person.',
+    'sim.errEndDate': 'Select the end month and year.',
+    'sim.errCalc': 'Could not run the calculation. Please try again.',
+    'pledge.zoneDivider': 'Now add your own pledge',
+    'pledge.zoneHeading': 'Add your pledge',
+    'pledge.zoneIntro':
+      'This is your personal pledge for one person. Your email is already entered from the previous step — it is used only to recognize your pledge and is never shown.',
+    'pledge.publicPromiseNote':
+      'A pledge is a public promise — no money is sent through the site. After saving you will see the bank details and QR codes.',
 
     // Months
     'month.1': 'January',
@@ -213,27 +258,18 @@ const TRANSLATIONS = {
     'month.12': 'December',
 
     // Pledge page — dynamic (JS)
-    'pledge.formTitleCreate': 'Your pledge',
     'pledge.formTitleEdit': 'Update your pledge',
-    'pledge.formIntroCreate': 'All preview values below update live before you save.',
     'pledge.formIntroEdit':
-      'You are editing an existing pledge. Preview values replace your current pledge in totals.',
+      'You are editing your existing pledge. Saving will replace your current pledge.',
     'pledge.typeMonthly': 'Monthly recurring',
     'pledge.typeOneTime': 'One-time',
-    'pledge.modeCreate':
-      '<strong>New pledge mode:</strong> preview adds this pledge on top of current totals.',
-    'pledge.modeEdit':
-      '<strong>Edit mode:</strong> preview replaces your existing pledge in current totals.',
     'pledge.btnChecking': 'Checking…',
     'pledge.btnSaving': 'Saving…',
-    'pledge.statusEnterEmail': 'Enter your email to begin.',
-    'pledge.statusMonthly': 'Monthly impact uses {n} remaining month(s).',
-    'pledge.statusSelectEnd': 'Select end month and end year to calculate total impact.',
-    'pledge.statusEditOneTime': 'Editing existing one-time pledge.',
-    'pledge.statusCreateOneTime': 'Creating new one-time pledge.',
-    'pledge.statusNoStats': 'Could not load current stats. Preview may be unavailable.',
     'pledge.errEmailRequired': 'Please enter your email.',
+    'pledge.errEmailFormat': 'Please enter a valid email address.',
     'pledge.errAmount': 'Amount must be greater than 0.',
+    'pledge.errAmountMax': 'Amount must not exceed {max}.',
+    'pledge.errMessageMax': 'Message must not exceed {max} characters.',
     'pledge.errEndMonth': 'End month must be between 1 and 12.',
     'pledge.errEndYear': 'Please enter a valid end year.',
     'pledge.errEndPast': 'Monthly pledge end date must be in the current or a future month.',

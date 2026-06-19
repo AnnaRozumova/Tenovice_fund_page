@@ -40,6 +40,25 @@ body {
   padding: 20px 0;
 }
 
+/* The logo is a wide wordmark (828×44). Cap it to the container so narrow
+   viewports don't get horizontal overflow; height stays auto to keep aspect. */
+.header .logo img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* On the pledge page the logo header sits directly above the banner image, so
+   stretch the logo (its red rule + mark are built into the SVG) to the full
+   container width — same width as the banner, mark to the right edge. */
+.header-banner {
+  padding-bottom: 0;
+}
+
+.header-banner .logo img {
+  width: 100%;
+  height: auto;
+}
+
 .logo-placeholder {
   display: inline-block;
   padding: 20px 40px;
@@ -641,7 +660,7 @@ body {
 
 /* Success Page */
 .success-card {
-  max-width: 760px;
+  max-width: 600px;
   margin: 60px auto;
   text-align: center;
 }
@@ -657,7 +676,26 @@ body {
   justify-content: center;
   font-size: 2rem;
   font-weight: 700;
-  margin-bottom: 20px;
+  margin: 0 auto 16px;
+}
+
+.success-card .page-description {
+  max-width: 480px;
+  margin: 0 auto;
+}
+
+/* Centered, equal-size, equal-height buttons (the primary filled, the secondary
+   outlined) — the two used to differ in font size and alignment. */
+.success-actions {
+  justify-content: center;
+  margin-top: 28px;
+}
+
+.success-actions .cta-button,
+.success-actions .secondary-button {
+  min-height: 54px;
+  padding: 14px 32px;
+  font-size: 1rem;
 }
 
 .success-primary-link {
@@ -665,6 +703,8 @@ body {
   align-items: center;
   justify-content: center;
   text-decoration: none;
+  background: var(--primary-color);
+  color: #fff;
 }
 
 @media (max-width: 992px) {
@@ -705,6 +745,55 @@ body {
   margin-bottom: 20px;
 }
 
+/* Lookup step — centered to match the calc page; email input sized down */
+
+/* Constrain the lookup-step cards so they don't stretch full width around the
+   centered content (keeps the step visually balanced, like the pledge card). */
+.lookup-hero,
+#lookupCard,
+#existingPledgeCard {
+  max-width: 600px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.lookup-hero {
+  text-align: center;
+}
+
+.lookup-hero .page-description {
+  max-width: 520px;
+  margin: 0 auto;
+}
+
+.lookup-hero .lookup-back {
+  display: inline-block;
+  margin-top: 18px;
+}
+
+.lookup-card,
+.existing-pledge-card {
+  text-align: center;
+}
+
+#lookupCard .lookup-grid {
+  grid-template-columns: 1fr;
+  max-width: 360px;
+  margin: 0 auto 20px;
+}
+
+#lookupCard .form-message {
+  max-width: 360px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+#existingPledgeCard .existing-pledge-summary {
+  max-width: 420px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
 .existing-pledge-summary {
   display: flex;
   flex-direction: column;
@@ -716,4 +805,394 @@ body {
   background: #f6f8fa;
   color: var(--text-light);
   cursor: not-allowed;
+}
+
+/* ============================================================
+   Calculator page (D2): banner + sticky bar + simulator +
+   supporters strip + pledge zone. Implements the D17 layout.
+   ============================================================ */
+
+.center {
+  text-align: center;
+}
+
+/* Banner */
+.calc-banner {
+  border-radius: var(--border-radius);
+  overflow: hidden;
+  box-shadow: var(--shadow);
+  margin: 20px 0 4px;
+}
+
+.calc-banner img {
+  width: 100%;
+  height: 200px;
+  object-fit: cover;
+  display: block;
+}
+
+/* Sticky campaign-status bar */
+.calc-topbar {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background: var(--bg-white);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.08);
+  border-radius: var(--border-radius);
+  margin: 8px 0;
+}
+
+.calc-topbar-inner {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 32px;
+  flex-wrap: wrap;
+  padding: 14px 20px;
+}
+
+.topbar-stat {
+  text-align: center;
+}
+
+.topbar-label {
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--text-light);
+}
+
+.topbar-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+  color: var(--primary-color);
+}
+
+.topbar-barwrap {
+  flex: 1;
+  min-width: 200px;
+}
+
+.progress-bar-container.calc-topbar-bar {
+  height: 14px;
+  margin: 0;
+}
+
+.topbar-cap {
+  font-size: 0.8rem;
+  color: var(--text-light);
+  margin-top: 6px;
+  text-align: center;
+}
+
+/* Zones 1 + 2: simulator card */
+.sim-card {
+  background: var(--bg-white);
+  border-radius: var(--border-radius);
+  box-shadow: var(--shadow-lg);
+  padding: 32px;
+  margin: 28px 0;
+  border-top: 4px solid var(--secondary-color);
+}
+
+.sim-card h2 {
+  font-size: 1.9rem;
+  margin-bottom: 6px;
+}
+
+.sim-sub {
+  color: var(--text-light);
+  margin: 0 auto 26px;
+  max-width: 640px;
+}
+
+.sim-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.05fr) minmax(290px, 0.95fr);
+  gap: 32px;
+  align-items: stretch;
+}
+
+.sim-inputs {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.sim-inputs .form-field,
+.sim-inputs .form-grid {
+  margin-bottom: 0;
+}
+
+.field-hint {
+  font-size: 0.8rem;
+  color: var(--text-light);
+  font-weight: 400;
+}
+
+/* Segmented one-time / monthly control */
+.segmented {
+  display: inline-flex;
+  border: 1px solid #d5dde5;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.seg-btn {
+  flex: 1;
+  border: none;
+  background: #fff;
+  padding: 12px 16px;
+  font: inherit;
+  font-weight: 600;
+  color: var(--text-light);
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.seg-btn.active {
+  background: var(--secondary-color);
+  color: #fff;
+}
+
+.sim-calc-button {
+  background: var(--secondary-color);
+  color: #fff;
+  align-self: center;
+}
+
+/* Zone 2: preview = the calculator's result */
+.sim-preview {
+  background: #f4f9fd;
+  border: 1px solid #dbe9f5;
+  border-radius: var(--border-radius);
+  padding: 26px;
+  display: flex;
+  flex-direction: column;
+  text-align: center;
+}
+
+.preview-eyebrow {
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  color: var(--secondary-color);
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.sim-big-amount {
+  font-size: 2.9rem;
+  font-weight: 800;
+  color: var(--primary-color);
+  line-height: 1.1;
+  margin: 2px 0 4px;
+}
+
+.sim-big-sub {
+  font-size: 0.9rem;
+  color: var(--text-light);
+  margin-bottom: 12px;
+}
+
+.sim-detail .preview-row {
+  text-align: left;
+  border-bottom-color: #dbe9f5;
+}
+
+.sim-progress {
+  margin-top: 20px;
+}
+
+.sim-progress-head {
+  display: flex;
+  justify-content: space-between;
+  font-weight: 600;
+  margin-bottom: 8px;
+  text-align: left;
+  gap: 12px;
+}
+
+.sim-pct {
+  color: var(--success-color);
+}
+
+.progress-bar-container.split {
+  display: flex;
+  height: 14px;
+  margin: 0;
+}
+
+.progress-bar-container.split .seg-base {
+  height: 100%;
+  background: var(--secondary-color);
+  transition: width 0.6s ease;
+}
+
+.progress-bar-container.split .seg-add {
+  height: 100%;
+  background: var(--success-color);
+  transition: width 0.6s ease;
+}
+
+.sim-legend {
+  display: flex;
+  justify-content: center;
+  gap: 18px;
+  font-size: 0.78rem;
+  color: var(--text-light);
+  margin-top: 8px;
+}
+
+.sim-legend .dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  margin-right: 5px;
+  vertical-align: middle;
+}
+
+.sim-legend .dot.base {
+  background: var(--secondary-color);
+}
+
+.sim-legend .dot.add {
+  background: var(--success-color);
+}
+
+.sim-cap {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.85rem;
+  color: var(--text-light);
+  margin-top: 8px;
+}
+
+/* Supporters strip (social proof) */
+.supporters-strip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  background: #fdecea;
+  border: 1px solid #f5cfc9;
+  border-radius: var(--border-radius);
+  padding: 16px 24px;
+  margin: 28px 0;
+  text-align: center;
+}
+
+.supporters-strip .heart {
+  color: var(--primary-color);
+  font-size: 1.2rem;
+}
+
+.supporters-strip strong {
+  color: var(--primary-color);
+}
+
+/* Zone separation */
+.zone-divider {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin: 40px 4px 8px;
+}
+
+.zone-divider::before,
+.zone-divider::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: #d5dde5;
+}
+
+.zone-divider span {
+  font-size: 0.8rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-light);
+}
+
+/* Zone 3: pledge form (centered, fits content) */
+.pledge-wrap {
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+.pledge-card {
+  background: var(--bg-white);
+  border-radius: var(--border-radius);
+  box-shadow: var(--shadow);
+  padding: 32px;
+  margin: 12px 0 24px;
+  border-top: 4px solid var(--primary-color);
+  text-align: center;
+}
+
+.pledge-card h2 {
+  font-size: 1.8rem;
+  margin-bottom: 6px;
+}
+
+.pledge-form {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  max-width: 460px;
+  margin: 0 auto;
+  text-align: left;
+}
+
+.pledge-form .form-field,
+.pledge-form .form-grid {
+  margin-bottom: 0;
+}
+
+.pledge-card .form-submit-button {
+  background: var(--primary-color);
+  color: #fff;
+}
+
+.center-actions {
+  justify-content: center;
+}
+
+.pledge-note {
+  font-size: 0.85rem;
+  color: var(--text-light);
+  margin-top: 4px;
+}
+
+/* Calculator page responsiveness */
+@media (max-width: 860px) {
+  .sim-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 560px) {
+  .calc-banner img {
+    height: 150px;
+  }
+
+  .calc-topbar-inner {
+    gap: 16px;
+  }
+
+  .sim-card,
+  .pledge-card {
+    padding: 22px 18px;
+  }
+
+  .sim-card h2 {
+    font-size: 1.5rem;
+  }
+
+  .sim-big-amount {
+    font-size: 2.3rem;
+  }
 }
