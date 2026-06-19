@@ -181,11 +181,13 @@ python -m pytest tests/ -v
 One command runs ruff + pytest (moto) on **Python 3.11** (the Lambda runtime):
 
 ```bash
-pwsh ./check.ps1     # Windows dev — bootstraps a 3.11 .venv, installs requirements-dev.txt, runs the gate
+bash ./check.sh      # Linux / macOS / CI (canonical) — bootstraps a 3.11 .venv, installs deps, runs the gate
+pwsh ./check.ps1     # Windows dev — same gate (the two share one .venv)
 make check           # Unix / CI parity — assumes ruff + deps already installed
 ```
 
-`requirements-dev.txt` = test deps + ruff; `.venv/` is gitignored. The legacy tests are currently
+`check.sh` is the canonical POSIX form (CI + Anna/Ondra run Linux); `check.ps1` is the Windows-local
+convenience (D16). `requirements-dev.txt` = test deps + ruff; `.venv/` is gitignored. The legacy tests are currently
 **skipped with a reason** (they assume an older validation/model contract — tuple-returning validation,
 `name` length, `pledgers_count`, no `contributors_count`) and get rewritten in the privacy/data-model
 phase. The locked pledge math is covered now in `tests/unit/test_pledge_math.py`.
@@ -193,7 +195,8 @@ phase. The locked pledge math is covered now in `tests/unit/test_pledge_math.py`
 ### Run the site locally
 
 ```bash
-pwsh ./serve.ps1     # serves web/ at http://localhost:8000 (no build, no deploy; -Port to change)
+bash ./serve.sh      # serves web/ at http://localhost:8000 (canonical; pass a port arg to change)
+pwsh ./serve.ps1     # Windows equivalent (-Port to change). No build, no deploy.
 ```
 
 The API base is a single config value — `CONFIG.API_URL` in `web/config.js` (defaults to the live dev
