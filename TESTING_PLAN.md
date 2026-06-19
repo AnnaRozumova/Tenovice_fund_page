@@ -152,7 +152,6 @@ curl -X POST "$API_URL/pledges" \
   -H "Content-Type: application/json" \
   -d '{
     "email": "john@example.com",
-    "contributors_count": 1,
     "amount": 100,
     "is_monthly": true,
     "end_month": 12,

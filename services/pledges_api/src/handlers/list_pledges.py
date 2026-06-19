@@ -27,7 +27,6 @@ def handler(event, context):
                 {
                     "amount": item.get("amount", Decimal("0")),
                     "is_monthly": item.get("is_monthly", False),
-                    "contributors_count": item.get("contributors_count", 0),
                     "campaign_total": item.get("campaign_total", Decimal("0")),
                     "end_month": item.get("end_month"),
                     "end_year": item.get("end_year"),

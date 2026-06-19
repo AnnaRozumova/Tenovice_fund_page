@@ -1,8 +1,10 @@
 """Integration tests for the create/update (upsert) pledge handler.
 
-Rewritten in Phase B (B1): payloads no longer carry ``name``; STATS tracks
-``contributors_count``. Tests run against a moto-mocked DynamoDB table that
-mirrors the real schema (PK ``pledgeID`` + ``EmailIndex`` GSI on ``email``).
+Rewritten in Phase B (B1): payloads no longer carry ``name``. B4: payloads no
+longer carry ``contributors_count`` either — a pledge is one person, so the STATS
+supporter tally (still stored under ``contributors_count``) counts pledges: +1 per
+new pledge, +0 on edit. Tests run against a moto-mocked DynamoDB table that mirrors
+the real schema (PK ``pledgeID`` + ``EmailIndex`` GSI on ``email``).
 """
 import importlib
 import json
@@ -64,7 +66,6 @@ class TestCreatePledgeHandler:
             "body": json.dumps(
                 {
                     "email": "john@example.com",
-                    "contributors_count": 2,
                     "amount": 100,
                     "is_monthly": False,
                     "message": "Great cause!",
@@ -80,6 +81,7 @@ class TestCreatePledgeHandler:
 
         item = table.get_item(Key={"pledgeID": body["pledge_id"]})["Item"]
         assert "name" not in item
+        assert "contributors_count" not in item
         assert item["email"] == "john@example.com"
         assert int(item["amount"]) == 100
         assert int(item["campaign_total"]) == 100
@@ -91,7 +93,6 @@ class TestCreatePledgeHandler:
             "body": json.dumps(
                 {
                     "email": "test@example.com",
-                    "contributors_count": 3,
                     "amount": 75,
                     "is_monthly": False,
                 }
@@ -102,7 +103,23 @@ class TestCreatePledgeHandler:
 
         stats = table.get_item(Key={"pledgeID": "STATS"})["Item"]
         assert int(stats["pledged_total"]) == 75
-        assert int(stats["contributors_count"]) == 3
+        # One pledge = one supporter (B4).
+        assert int(stats["contributors_count"]) == 1
+
+    def test_two_pledges_count_two_supporters(self, dynamodb_table):
+        """B4: each distinct pledge adds exactly one supporter."""
+        table, handler = dynamodb_table
+
+        for email in ("a@example.com", "b@example.com"):
+            event = {
+                "body": json.dumps(
+                    {"email": email, "amount": 50, "is_monthly": False}
+                )
+            }
+            assert handler(event, None)["statusCode"] == 201
+
+        stats = table.get_item(Key={"pledgeID": "STATS"})["Item"]
+        assert int(stats["contributors_count"]) == 2
 
     def test_monthly_pledge_updates_monthly_total(self, dynamodb_table):
         table, handler = dynamodb_table
@@ -111,7 +128,6 @@ class TestCreatePledgeHandler:
             "body": json.dumps(
                 {
                     "email": "monthly@example.com",
-                    "contributors_count": 1,
                     "amount": 25,
                     "is_monthly": True,
                     "end_month": 12,
@@ -131,7 +147,6 @@ class TestCreatePledgeHandler:
 
         first = {
             "email": "returning@example.com",
-            "contributors_count": 1,
             "amount": 100,
             "is_monthly": False,
         }
@@ -162,7 +177,7 @@ class TestCreatePledgeHandler:
         _, handler = dynamodb_table
         event = {
             "body": json.dumps(
-                {"email": "john@example.com", "contributors_count": 1, "is_monthly": True}
+                {"email": "john@example.com", "is_monthly": True}
             )
         }
         response = handler(event, None)
@@ -175,7 +190,6 @@ class TestCreatePledgeHandler:
             "body": json.dumps(
                 {
                     "email": "John.Doe@EXAMPLE.COM",
-                    "contributors_count": 1,
                     "amount": 100,
                     "is_monthly": False,
                 }

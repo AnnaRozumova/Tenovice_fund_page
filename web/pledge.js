@@ -36,7 +36,6 @@ function getRemainingMonths(endMonth, endYear) {
 function getFormValues() {
   return {
     email: $('email').value.trim(),
-    contributors_count: parsePositiveNumber($('contributors_count').value),
     amount: parsePositiveNumber($('amount').value),
     is_monthly: isMonthlySelected(),
     end_month: parsePositiveNumber($('end_month').value),
@@ -69,13 +68,6 @@ function getMonthlyEffect(pledge) {
     return 0;
   }
   return pledge.is_monthly ? Number(pledge.amount || 0) : 0;
-}
-
-function getContributorsCount(pledge) {
-  if (!pledge) {
-    return 0;
-  }
-  return Number(pledge.contributors_count || 0);
 }
 
 function toggleMonthlyFields() {
@@ -127,7 +119,6 @@ function calculatePreview(values) {
 
   let updatedPledgedTotal = currentStats.pledged_total + pledgeImpact;
   let updatedMonthlyTotal = currentStats.monthly_total + monthlyEffect;
-  let updatedContributorsCount = currentStats.contributors_count + values.contributors_count;
 
   if (isEditMode && existingPledge) {
     updatedPledgedTotal =
@@ -135,9 +126,6 @@ function calculatePreview(values) {
 
     updatedMonthlyTotal =
       currentStats.monthly_total - getMonthlyEffect(existingPledge) + monthlyEffect;
-
-    updatedContributorsCount =
-      currentStats.contributors_count - getContributorsCount(existingPledge) + values.contributors_count;
   }
 
   const updatedProgressAmount = CONFIG.CURRENT_BALANCE + updatedPledgedTotal;
@@ -152,7 +140,6 @@ function calculatePreview(values) {
     monthlyEffect,
     updatedPledgedTotal,
     updatedMonthlyTotal,
-    updatedContributorsCount,
     updatedProgressAmount,
     progressPercent,
   };
@@ -170,7 +157,6 @@ function renderPreview() {
   $('previewMonthlyEffect').textContent = formatCurrency(preview.monthlyEffect);
   $('previewPledgedTotal').textContent = formatCurrency(preview.updatedPledgedTotal);
   $('previewMonthlyTotal').textContent = formatCurrency(preview.updatedMonthlyTotal);
-  $('previewContributorsCount').textContent = preview.updatedContributorsCount;
   $('previewProgressPercent').textContent = `${preview.progressPercent}%`;
   $('previewProgressAmount').textContent = formatCurrency(preview.updatedProgressAmount);
   $('previewGoalAmount').textContent = formatCurrency(CONFIG.FUNDRAISING_GOAL);
@@ -208,7 +194,6 @@ async function loadStats() {
 
 function populateExistingSummary(data) {
   $('existingEmail').textContent = data.email || '-';
-  $('existingContributors').textContent = Number(data.contributors_count || 0);
   $('existingAmount').textContent = formatCurrency(Number(data.amount || 0));
   $('existingCampaignTotal').textContent = formatCurrency(Number(data.campaign_total || 0));
   $('existingMessage').textContent = data.message ? data.message : '-';
@@ -225,7 +210,6 @@ function populateExistingSummary(data) {
 
 function populateForm(values) {
   $('email').value = values.email || '';
-  $('contributors_count').value = Number(values.contributors_count || 1);
   $('amount').value = Number(values.amount || 0) || '';
   $('is_monthly').checked = Boolean(values.is_monthly);
   $('end_month').value = values.end_month ? String(values.end_month) : '';
@@ -248,7 +232,6 @@ function enterCreateMode(email) {
 
   populateForm({
     email,
-    contributors_count: 1,
     amount: '',
     is_monthly: false,
     end_month: '',
@@ -324,10 +307,6 @@ function validateForm(values) {
     return t('pledge.errEmailRequired');
   }
 
-  if (values.contributors_count <= 0) {
-    return t('pledge.errContributors');
-  }
-
   if (values.amount <= 0) {
     return t('pledge.errAmount');
   }
@@ -352,7 +331,6 @@ function validateForm(values) {
 function buildPayload(values) {
   const payload = {
     email: values.email,
-    contributors_count: values.contributors_count,
     amount: values.amount,
     is_monthly: values.is_monthly,
   };

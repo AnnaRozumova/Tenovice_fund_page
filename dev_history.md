@@ -5,6 +5,41 @@ and how it was verified. Companion to `CLAUDE.md` (developer quick-start) and `d
 
 ---
 
+## 2026-06-19 — B4: remove `contributors_count` from the pledge (1 pledge = 1 supporter)
+
+**Why:** the project owner (Anna) and reviewer (Ondra) clarified that the "how many people" idea belongs to
+a *what-if calculator/simulator* (Phase D), not to a saved pledge. A saved pledge represents **one person**;
+the supporters headline is a count of pledges. There is **no contributors cap** (Anna: none wanted).
+
+**What changed:**
+- **Model** (`domain/models.py`) — `contributors_count` removed from the `Pledge` dataclass and from
+  `to_dynamodb_item`; `from_dynamodb_item` now **ignores** a legacy `contributors_count` on older rows.
+- **Validation** (`domain/validation.py`) — `contributors_count` no longer required/validated; the B3
+  `MAX_CONTRIBUTORS_COUNT` cap and the now-unused `_require_positive_int` helper were removed.
+- **Handlers** — `create_pledge` adjusts the `STATS` supporter tally by **+1 on create, +0 on edit** (the
+  field is still stored under `contributors_count`, now a pledge count); the `_adjust_stats` param is
+  `supporters_delta`. `get_pledge_by_email` dropped `contributors_count` from its allowlist; `list_pledges`
+  dropped it from the public rows. `get_stats` unchanged (still serves the `STATS` supporter total).
+- **Frontend** (`web/pledge.html`, `web/pledge.js`, `web/i18n.js`) — the contributors form field, the
+  existing-pledge summary row, the live-preview row, the POST payload, and 3 i18n keys (`pledge.fieldContributors`,
+  `pledge.previewContributors`, `pledge.errContributors`) were removed.
+- **No destructive DB migration** — old rows may keep the attribute; the pledge path simply stops writing it.
+- **Tests/fixtures** updated across the suite; new tests: contributors-in-payload is ignored, a legacy row
+  with `contributors_count` is not surfaced, and two pledges count as two supporters.
+
+**What did NOT change:** the pledge math, the email-based upsert flow, the `STATS` field name (kept for the
+frontend), the calculator rework itself (Phase D2 reframes the page into a simulator + separate save).
+
+**Verification:**
+```
+$ pwsh ./check.ps1                  → ruff clean, 65 passed
+$ node tools/check-i18n-parity.js   → ✓ en: 97 keys, in parity with 'cs'
+```
+Browser-checked the pledge page: the contributors field is gone, the live preview renders, and the POST
+payload is `{email, amount, is_monthly}`.
+
+---
+
 ## 2026-06-19 — D1: i18n scaffolding (CZ default + EN) + language toggle
 
 **Why:** the site is for Czech friends of the Tenovice sangha but the content was hard-coded in English.

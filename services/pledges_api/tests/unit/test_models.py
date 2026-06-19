@@ -1,7 +1,8 @@
 """Unit tests for domain models.
 
 Rewritten in Phase B (B1): ``name`` is gone from the model; pledges carry
-``contributors_count`` and ``campaign_total``.
+``campaign_total``. B4: ``contributors_count`` is gone too — a pledge is one
+person — and ``from_dynamodb_item`` ignores it on legacy rows that still have it.
 """
 from decimal import Decimal
 
@@ -16,7 +17,6 @@ class TestPledgeModel:
         pledge = Pledge(
             pledge_id="test-123",
             email="john@example.com",
-            contributors_count=2,
             amount=Decimal("100"),
             is_monthly=True,
             created_at="2024-01-01T00:00:00Z",
@@ -28,8 +28,8 @@ class TestPledgeModel:
 
         assert item["pledgeID"] == "test-123"
         assert "name" not in item
+        assert "contributors_count" not in item
         assert item["email"] == "john@example.com"
-        assert item["contributors_count"] == 2
         assert item["amount"] == Decimal("100")
         assert item["is_monthly"] is True
         assert item["created_at"] == "2024-01-01T00:00:00Z"
@@ -40,7 +40,6 @@ class TestPledgeModel:
         pledge = Pledge(
             pledge_id="test-456",
             email="jane@example.com",
-            contributors_count=1,
             amount=Decimal("50"),
             is_monthly=False,
             created_at="2024-01-02T00:00:00Z",
@@ -58,7 +57,6 @@ class TestPledgeModel:
         item = {
             "pledgeID": "test-789",
             "email": "bob@example.com",
-            "contributors_count": 3,
             "amount": Decimal("200"),
             "is_monthly": True,
             "created_at": "2024-01-03T00:00:00Z",
@@ -70,7 +68,6 @@ class TestPledgeModel:
 
         assert pledge.pledge_id == "test-789"
         assert pledge.email == "bob@example.com"
-        assert pledge.contributors_count == 3
         assert pledge.amount == Decimal("200")
         assert pledge.is_monthly is True
         assert pledge.created_at == "2024-01-03T00:00:00Z"
@@ -81,7 +78,6 @@ class TestPledgeModel:
         item = {
             "pledgeID": "test-000",
             "email": "alice@example.com",
-            "contributors_count": 1,
             "amount": Decimal("75"),
             "is_monthly": False,
             "created_at": "2024-01-04T00:00:00Z",
@@ -92,12 +88,30 @@ class TestPledgeModel:
 
         assert pledge.message is None
 
+    def test_from_dynamodb_item_ignores_legacy_contributors_count(self):
+        """B4: a pre-B4 row may still carry ``contributors_count`` — it is ignored."""
+        item = {
+            "pledgeID": "legacy-1",
+            "email": "old@example.com",
+            "contributors_count": 5,
+            "amount": Decimal("100"),
+            "is_monthly": False,
+            "created_at": "2024-01-04T00:00:00Z",
+            "campaign_total": Decimal("100"),
+        }
+
+        pledge = Pledge.from_dynamodb_item(item)
+
+        assert pledge.email == "old@example.com"
+        assert not hasattr(pledge, "contributors_count")
+        # And it does not get re-written when serialized back.
+        assert "contributors_count" not in pledge.to_dynamodb_item()
+
     def test_roundtrip_conversion(self):
         """Test that Pledge → DynamoDB → Pledge preserves data"""
         original = Pledge(
             pledge_id="roundtrip-test",
             email="test@example.com",
-            contributors_count=4,
             amount=Decimal("150"),
             is_monthly=True,
             created_at="2024-01-05T00:00:00Z",
@@ -110,7 +124,6 @@ class TestPledgeModel:
 
         assert restored.pledge_id == original.pledge_id
         assert restored.email == original.email
-        assert restored.contributors_count == original.contributors_count
         assert restored.amount == original.amount
         assert restored.is_monthly == original.is_monthly
         assert restored.created_at == original.created_at
