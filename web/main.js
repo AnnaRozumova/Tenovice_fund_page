@@ -18,9 +18,9 @@ async function loadPledgesStats() {
 
   } catch (error) {
     console.error('Error loading stats:', error);
-    document.getElementById('pledgesTotal').textContent = 'N/A';
-    document.getElementById('pledgesCount').textContent = 'N/A';
-    document.getElementById('pledgesMonthly').textContent = 'N/A';
+    document.getElementById('pledgesTotal').textContent = t('common.na');
+    document.getElementById('pledgesCount').textContent = t('common.na');
+    document.getElementById('pledgesMonthly').textContent = t('common.na');
   }
 }
 

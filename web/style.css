@@ -51,6 +51,55 @@ body {
   color: var(--primary-color);
 }
 
+/* Language toggle — subtle text switch in the top-right of the first card */
+.lang-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.lang-toggle.corner {
+  position: absolute;
+  top: 16px;
+  right: 20px;
+  z-index: 2;
+}
+
+/* Pledge hero: stack the toggle above the existing back link, top-right */
+.page-hero-aside {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 14px;
+}
+
+.lang-btn {
+  border: none;
+  background: transparent;
+  color: var(--text-light);
+  font-size: 0.8rem;
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  padding: 2px 2px;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.lang-btn:hover {
+  color: var(--text-dark);
+}
+
+.lang-btn.active {
+  color: var(--text-dark);
+  font-weight: 700;
+}
+
+.lang-sep {
+  color: var(--text-light);
+  font-size: 0.8rem;
+  user-select: none;
+}
+
 /* Hero Section */
 .hero {
   padding: 40px 20px;
@@ -58,6 +107,7 @@ body {
   border-radius: var(--border-radius);
   box-shadow: var(--shadow);
   margin: 40px 0;
+  position: relative;
 }
 
 .hero-content {
@@ -333,6 +383,7 @@ body {
   box-shadow: var(--shadow);
   padding: 32px;
   margin: 40px 0;
+  position: relative;
 }
 
 .page-hero-compact {
@@ -387,6 +438,7 @@ body {
   border-radius: var(--border-radius);
   box-shadow: var(--shadow);
   padding: 32px;
+  position: relative;
 }
 
 .pledge-form-card h2,

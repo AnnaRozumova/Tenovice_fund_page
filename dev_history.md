@@ -5,6 +5,47 @@ and how it was verified. Companion to `CLAUDE.md` (developer quick-start) and `d
 
 ---
 
+## 2026-06-19 — D1: i18n scaffolding (CZ default + EN) + language toggle
+
+**Why:** the site is for Czech friends of the Tenovice sangha but the content was hard-coded in English.
+D1 makes the public pages bilingual (CZ default, EN), with the structure ready for a third language (DE).
+
+**What changed:**
+- **New i18n core** `web/i18n.js` — one flat-key dictionary `TRANSLATIONS{cs,en}` (100 keys each),
+  `t(key, {params})` with `{n}`-style interpolation and fallback (default lang → key), `applyTranslations()`
+  (handles `data-i18n`, `data-i18n-html`, and `placeholder`/`alt`/`aria-label`/`title` attributes), a
+  `localStorage`-persisted language toggle, `<html lang>` following the choice, and an `i18n:changed` event.
+  Node-exportable so the parity checker can import it.
+- **New parity checker** `tools/check-i18n-parity.js` — fails (non-zero) if any language's key set differs
+  from the default language's. Run with `node tools/check-i18n-parity.js`.
+- **Pages** (`index.html`, `pledge.html`, `success.html`) — a subtle `CS · EN` toggle in the **top-right of
+  the first white card**, `data-i18n*` on every user-facing string, and the `i18n.js` script. The broken
+  `</img>` markup in the home-page header (a known D4 item) was fixed here while restructuring it.
+- **JS** (`main.js`, `pledge.js`) — all runtime-generated strings now go through `t()`; `pledge.js`
+  re-renders its dynamic strings (form title/intro, preview status, mode note, existing-pledge type) on the
+  `i18n:changed` event.
+- **CSS** (`style.css`) — `.lang-toggle` / `.lang-btn` subtle text switch.
+- **Wording** — Czech copy reviewed for the community-fundraising tone (informal "ty"; "příslib" for a
+  pledge; "přínos" over "dopad").
+- **`admin.html` stays English** — it is an internal tool, not part of the public bilingual site.
+- **Bundled lint tidy** (per request): `domain/validation.py` now re-raises with `... from exc` in its
+  `int()`/`Decimal()` guards (Codeac `raise-missing-from`); behaviour unchanged.
+
+**What did NOT change:** calculator logic/layout (D2), goal-breakdown display (D3), the responsive pass
+(D4 — the home page still has horizontal overflow at ~375px from the hero grid/banner), backend, admin copy.
+
+**Verification:**
+```
+$ pwsh ./check.ps1                  → ruff clean, 66 passed
+$ node tools/check-i18n-parity.js   → ✓ en: 100 keys, in parity with 'cs'
+$ node --check web/{i18n,main,pledge}.js → ok
+```
+Browser (preview, desktop + mobile 375px): default load is Czech; the toggle switches the full UI CZ↔EN
+(static via `data-i18n`, dynamic via `t()` + re-render), `<html lang>` updates, and the choice persists
+across navigation. `/code-review` of the diff: no findings.
+
+---
+
 ## 2026-06-19 — C2: protected `POST /config` + admin page
 
 **Why:** C1 made the campaign numbers readable from a `CONFIG` row but nothing could write them. C2 adds
