@@ -45,7 +45,7 @@ const TRANSLATIONS = {
     // Home page — goal breakdown (3 directions) + dw-connect link
     'index.breakdownHeading': 'Tři hlavní směry',
     'index.breakdownIntro': 'Náš cíl tvoří tři stavby — každá má svůj vlastní rozpočet.',
-    'index.dwConnectLink': 'Otevřít projekt na dw-connect →',
+    'index.dwConnectLink': 'Otevřít projekt Těnovice na dw-connect →',
     'index.dwConnectNote': 'Celý příběh, fotky a novinky — pro přihlášené členy dw-connect.',
     'breakdown.new_gompa': 'Nová Gompa',
     'breakdown.new_gompaDesc': 'Meditační hala až pro 150 lidí.',
@@ -194,7 +194,7 @@ const TRANSLATIONS = {
     // Home page — goal breakdown (3 directions) + dw-connect link
     'index.breakdownHeading': 'Three main directions',
     'index.breakdownIntro': 'Our goal is made up of three builds — each with its own budget.',
-    'index.dwConnectLink': 'Open the project on dw-connect →',
+    'index.dwConnectLink': 'Open Tenovice project on dw-connect →',
     'index.dwConnectNote': 'Full story, photos and news — for logged-in dw-connect members.',
     'breakdown.new_gompa': 'New Gompa',
     'breakdown.new_gompaDesc': 'Meditation hall for up to 150 people.',
