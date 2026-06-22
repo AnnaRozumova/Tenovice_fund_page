@@ -293,6 +293,119 @@ body {
   letter-spacing: 1px;
 }
 
+/* Goal breakdown (3 directions) */
+.breakdown-section {
+  background: var(--bg-white);
+  padding: 40px;
+  border-radius: var(--border-radius);
+  box-shadow: var(--shadow);
+  margin: 40px 0;
+}
+
+.breakdown-section h2 {
+  text-align: center;
+  font-size: 2rem;
+  margin-bottom: 12px;
+  color: var(--text-dark);
+}
+
+.breakdown-intro {
+  text-align: center;
+  color: var(--text-light);
+  max-width: 640px;
+  margin: 0 auto 30px;
+}
+
+.breakdown-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 20px;
+}
+
+.breakdown-card {
+  display: flex;
+  flex-direction: column;
+  text-align: center;
+  padding: 28px 24px;
+  background: var(--bg-light);
+  border-radius: var(--border-radius);
+  overflow: hidden;
+}
+
+/* Full-bleed cover photo at the top of a card (rounded to the card's top). */
+.breakdown-media {
+  margin: -28px -24px 18px;
+  aspect-ratio: 16 / 9;
+  overflow: hidden;
+  border-radius: var(--border-radius) var(--border-radius) 0 0;
+  background: var(--bg-light);
+}
+
+.breakdown-media img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform 0.4s ease;
+}
+
+.breakdown-card-link:hover .breakdown-media img {
+  transform: scale(1.05);
+}
+
+/* Cards that link to a dw-connect project page: gentle lift + shadow on hover. */
+.breakdown-card-link {
+  text-decoration: none;
+  color: inherit;
+  cursor: pointer;
+  transition: var(--transition);
+}
+
+.breakdown-card-link:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
+}
+
+.breakdown-card-link:focus-visible {
+  outline: 2px solid var(--secondary-color);
+  outline-offset: 2px;
+}
+
+.breakdown-name {
+  font-size: 1.25rem;
+  color: var(--text-dark);
+  margin-bottom: 8px;
+}
+
+.breakdown-desc {
+  font-size: 0.95rem;
+  color: var(--text-light);
+  margin-bottom: 16px;
+  flex: 1;
+}
+
+.breakdown-amount {
+  font-size: 1.75rem;
+  font-weight: 700;
+  color: var(--primary-color);
+}
+
+.breakdown-link-wrap {
+  text-align: center;
+  margin-top: 30px;
+}
+
+.breakdown-link {
+  font-size: 1.05rem;
+}
+
+.breakdown-link-note {
+  display: block;
+  margin-top: 8px;
+  font-size: 0.875rem;
+  color: var(--text-light);
+}
+
 /* CTA Section */
 .cta-section {
   text-align: center;

@@ -229,6 +229,10 @@ must define the same keys — `node tools/check-i18n-parity.js` (non-zero on dri
   **fallback defaults** (EUR). `loadConfig()` fetches `GET /config` on page load and overrides them (C1);
   the hardcoded values are used only if that request fails. `web/admin.html` + `admin.js` (C2) edit the
   numbers: paste the secret, prefill from `GET /config`, save via `POST /config`.
+  `BREAKDOWN_LINKS` and `BREAKDOWN_IMAGES` (D3) map each **stable breakdown key** to a dw-connect project
+  URL and a cover photo (`web/images/breakdown_*.webp`); they are frontend-only structural assets, not part
+  of the editable `CONFIG` row. The home page renders the breakdown from these via `renderBreakdown()` in
+  `web/main.js` — a direction with no link/image degrades gracefully (plain card / no photo).
 
 ## Adding a new Lambda handler
 1. Create the handler in `services/pledges_api/src/handlers/`.

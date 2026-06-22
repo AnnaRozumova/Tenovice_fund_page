@@ -5,6 +5,43 @@ and how it was verified. Companion to `CLAUDE.md` (developer quick-start) and `d
 
 ---
 
+## 2026-06-22 — D3: goal breakdown + dw-connect link + cover photos
+
+**Why:** show *what the goal is made of* (the 3 project directions, each with its budget) on the home page,
+and point visitors to the full story/photos on dw-connect — while keeping the calculator page focused.
+Frontend-only — no Python/CDK change.
+
+**What changed (all under `web/`):**
+- **`index.html`** — new `breakdown-section` on the home page (between the progress and pledges sections):
+  heading + intro + an empty `#breakdownList` (filled by JS) + a prominent dw-connect link with a note that
+  it needs a logged-in dw-connect membership.
+- **`main.js`** — `renderBreakdown()` builds one card per `CONFIG.BREAKDOWN` entry (run after `loadConfig()`).
+  Each card: an optional cover photo, a localized name + description, and the EUR target. Cards link to their
+  dw-connect project page when one is configured; missing link/photo degrades gracefully (plain `div` / no
+  image). Labels carry `data-i18n`/`data-i18n-alt` so the language toggle re-translates them; amounts use the
+  existing `formatCurrency`.
+- **`config.js`** — `BREAKDOWN_LINKS` and `BREAKDOWN_IMAGES`, both keyed by the **stable breakdown key**
+  (`new_gompa` / `sangha_house` / `basecamp_north`). These are structural assets (not editable campaign
+  numbers), so they live in the frontend rather than the `CONFIG` row — same split as the i18n labels.
+- **`i18n.js`** — 10 new keys per language (heading, intro, dw-connect link + note, and the 3 directions'
+  names + one-line descriptions). Parity held at **122=122**.
+- **`style.css`** — breakdown section + responsive card grid (`auto-fit, minmax(220px, 1fr)`), full-bleed
+  cover photo (`aspect-ratio: 16/9`, `object-fit: cover`), gentle hover (card lift + photo zoom), focus-visible
+  outline for keyboard users.
+- **`web/images/breakdown_{new_gompa,sangha_house,basecamp_north}.webp` (new)** — cover photos, resized to
+  800 px and exported to WebP (52 / 31 / 57 KB) from the project renders in the dw-connect PDFs (the basecamp
+  one is an early hand sketch — the only asset available for that direction).
+
+**What did NOT change:** no backend/CDK; the `CONFIG` row schema is unchanged (links/images are frontend-side).
+
+**Verification:** gate green (`ruff` clean, **77 passed**), i18n parity 122=122, `node --check` on the three
+JS files. Browser-driven (no-cache local serve): 3 cards render from CONFIG with correct targets + photos,
+each card is an `<a>` to the right dw-connect page (`target=_blank`, `rel="noopener noreferrer"`), cover
+images load (800×450 / 800×450 / 800×280) and are clipped to a uniform 16:9, CZ↔EN re-translates names +
+`alt`, and **no horizontal overflow at 1280 / 375 / 320 px** (cards collapse to one column on mobile).
+
+---
+
 ## 2026-06-19 — D2: calculator + preview (display-only) and a separate pledge-save flow
 
 **Why:** wire the locked three-zone page design to the backend. The "what-if" calculator must get its

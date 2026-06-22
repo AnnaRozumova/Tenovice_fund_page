@@ -40,6 +40,67 @@ function updateProgressBar() {
   }, 100);
 }
 
+// Render the 3-direction goal breakdown from CONFIG (live values from /config,
+// fallback defaults otherwise). Labels are localized via data-i18n keys, so the
+// language toggle re-translates them; the EUR amounts are language-independent.
+function renderBreakdown() {
+  const list = document.getElementById('breakdownList');
+  if (!list || !Array.isArray(CONFIG.BREAKDOWN)) {
+    return;
+  }
+
+  const links = CONFIG.BREAKDOWN_LINKS || {};
+  const images = CONFIG.BREAKDOWN_IMAGES || {};
+
+  list.innerHTML = '';
+  CONFIG.BREAKDOWN.forEach((item) => {
+    const nameKey = `breakdown.${item.key}`;
+    const descKey = `breakdown.${item.key}Desc`;
+    const url = links[item.key];
+    const imageSrc = images[item.key];
+
+    // When a direction has a dw-connect project page, the whole card is a link
+    // (opens in a new tab); otherwise it renders as a plain block.
+    const card = document.createElement(url ? 'a' : 'div');
+    card.className = url ? 'breakdown-card breakdown-card-link' : 'breakdown-card';
+    if (url) {
+      card.href = url;
+      card.target = '_blank';
+      card.rel = 'noopener noreferrer';
+    }
+
+    // Optional cover photo (zooms gently on hover via the wrapper's overflow).
+    if (imageSrc) {
+      const media = document.createElement('div');
+      media.className = 'breakdown-media';
+      const img = document.createElement('img');
+      img.src = imageSrc;
+      img.loading = 'lazy';
+      img.alt = t(nameKey);
+      img.setAttribute('data-i18n-alt', nameKey);
+      media.appendChild(img);
+      card.appendChild(media);
+    }
+
+    const name = document.createElement('h3');
+    name.className = 'breakdown-name';
+    name.setAttribute('data-i18n', nameKey);
+    name.textContent = t(nameKey);
+
+    const desc = document.createElement('p');
+    desc.className = 'breakdown-desc';
+    desc.setAttribute('data-i18n', descKey);
+    desc.textContent = t(descKey);
+
+    const amount = document.createElement('div');
+    amount.className = 'breakdown-amount';
+    amount.textContent = formatCurrency(item.amount);
+
+    card.append(name, desc, amount);
+    list.appendChild(card);
+  });
+}
+
 // Handle pledge button click
 function setupPledgeButton() {
   const pledgeButton = document.getElementById('pledgeButton');
@@ -53,6 +114,7 @@ function setupPledgeButton() {
 async function init() {
   await loadConfig();
   updateProgressBar();
+  renderBreakdown();
   await loadPledgesStats();
   setupPledgeButton();
 }

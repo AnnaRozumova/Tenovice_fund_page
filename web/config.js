@@ -15,6 +15,24 @@ const CONFIG = {
     { key: 'sangha_house', amount: 1200000 },
     { key: 'basecamp_north', amount: 320000 },
   ],
+
+  // Per-direction dw-connect project pages, keyed by the stable breakdown key.
+  // These are structural links (not editable campaign numbers), so they live
+  // here rather than in the CONFIG row; the breakdown cards link to them.
+  BREAKDOWN_LINKS: {
+    new_gompa: 'https://dw-connect.org/centers/tenovice/gompaproject',
+    sangha_house: 'https://dw-connect.org/projects/tenovice-project/sangha-house-project',
+    basecamp_north: 'https://dw-connect.org/centers/tenovice/project/basecamp-north',
+  },
+
+  // Cover image per direction, keyed by the stable breakdown key. A direction
+  // without an entry simply renders without a photo (graceful). Files live in
+  // web/images/ (project renders; the basecamp one is an early sketch).
+  BREAKDOWN_IMAGES: {
+    new_gompa: 'images/breakdown_new_gompa.webp',
+    sangha_house: 'images/breakdown_sangha_house.webp',
+    basecamp_north: 'images/breakdown_basecamp_north.webp',
+  },
 };
 
 // Dev-only API override: point the site at a different API without editing this
