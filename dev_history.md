@@ -5,6 +5,39 @@ and how it was verified. Companion to `CLAUDE.md` (developer quick-start) and `d
 
 ---
 
+## 2026-06-22 — D4: responsive pass (phone + desktop)
+
+**Why:** make the whole flow mobile-first and verified at phone + desktop widths (decision D10). Frontend-only
+— no Python/CDK change; CSS + one markup move.
+
+**What changed (all under `web/`):**
+- **`style.css`** —
+  - **Sticky status bar (`.calc-topbar`) → `static` at ≤768 px.** On phone/tablet it wraps to several rows
+    (~140 px); as `sticky` it permanently covered a large slice of the viewport during the (long) calculator
+    flow. It stays `sticky` on desktop, where it fits in one compact row (~85 px). Small-phone (≤560 px)
+    tightening of its padding / value font.
+  - **Tap targets.** `.checkbox-label` row gets `min-height: 44px`.
+  - **Language toggle restyled (Martin's review):** smaller and tighter (`font-size: 0.75rem`,
+    `padding: 4px 5px`, `gap: 3px`) so it stays subtle.
+  - **Hero intro justified:** `.description` → `text-align: justify` + `hyphens: auto` (with `-webkit-hyphens`
+    for Safari) for a cleaner block on the home page.
+  - **`.sim-card`** gets `position: relative` + extra top padding so its centered heading clears the new
+    corner toggle (see below).
+- **`pledge.html`** — the calc-flow **language toggle moved out of the sticky status bar into the top-right
+  corner of the `.sim-card`** ("Spočítej svůj přínos"), where it reads better than floating in the status bar.
+
+**What did NOT change:** no backend/CDK/JS logic; no i18n keys added (the moved toggle reuses the existing
+`common.langLabel`). The earlier "known 375 px hero overflow" was already resolved by the D2/D3 rework, and the
+stray `</img>` was already fixed in D1 — both re-verified, nothing to change.
+
+**Verification:** gate green (`ruff` clean, **77 passed**), i18n parity holds (114=114). Measured in-browser via
+`getBoundingClientRect` overflow scans + computed styles (the screenshot tool was unavailable in this
+environment): **no horizontal overflow** at 320 / 375 / 700 / 1280 px on home, lookup, existing-pledge, calc
+flow, and success; corner toggle clears the centered sim heading at 320/375/desktop; the relocated toggle still
+switches CZ↔EN.
+
+---
+
 ## 2026-06-22 — D3: discreet dw-connect link (one Tenovice — no 3-direction breakdown)
 
 **Why:** the project is **one** direction ("ONE Tenovice"), not three (Ondra). So we do **not** present a
