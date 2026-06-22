@@ -5,40 +5,25 @@ and how it was verified. Companion to `CLAUDE.md` (developer quick-start) and `d
 
 ---
 
-## 2026-06-22 — D3: goal breakdown + dw-connect link + cover photos
+## 2026-06-22 — D3: discreet dw-connect link (one Tenovice — no 3-direction breakdown)
 
-**Why:** show *what the goal is made of* (the 3 project directions, each with its budget) on the home page,
-and point visitors to the full story/photos on dw-connect — while keeping the calculator page focused.
+**Why:** the project is **one** direction ("ONE Tenovice"), not three (Ondra). So we do **not** present a
+"3 main directions" breakdown; dw-connect already has the full story, so a single discreet link suffices.
+(An earlier take on D3 that rendered a 3-card breakdown with cover photos was dropped before merge.)
 Frontend-only — no Python/CDK change.
 
 **What changed (all under `web/`):**
-- **`index.html`** — new `breakdown-section` on the home page (between the progress and pledges sections):
-  heading + intro + an empty `#breakdownList` (filled by JS) + a prominent dw-connect link with a note that
-  it needs a logged-in dw-connect membership.
-- **`main.js`** — `renderBreakdown()` builds one card per `CONFIG.BREAKDOWN` entry (run after `loadConfig()`).
-  Each card: an optional cover photo, a localized name + description, and the EUR target. Cards link to their
-  dw-connect project page when one is configured; missing link/photo degrades gracefully (plain `div` / no
-  image). Labels carry `data-i18n`/`data-i18n-alt` so the language toggle re-translates them; amounts use the
-  existing `formatCurrency`.
-- **`config.js`** — `BREAKDOWN_LINKS` and `BREAKDOWN_IMAGES`, both keyed by the **stable breakdown key**
-  (`new_gompa` / `sangha_house` / `basecamp_north`). These are structural assets (not editable campaign
-  numbers), so they live in the frontend rather than the `CONFIG` row — same split as the i18n labels.
-- **`i18n.js`** — 10 new keys per language (heading, intro, dw-connect link + note, and the 3 directions'
-  names + one-line descriptions). Parity held at **122=122**.
-- **`style.css`** — breakdown section + responsive card grid (`auto-fit, minmax(220px, 1fr)`), full-bleed
-  cover photo (`aspect-ratio: 16/9`, `object-fit: cover`), gentle hover (card lift + photo zoom), focus-visible
-  outline for keyboard users.
-- **`web/images/breakdown_{new_gompa,sangha_house,basecamp_north}.webp` (new)** — cover photos, resized to
-  800 px and exported to WebP (52 / 31 / 57 KB) from the project renders in the dw-connect PDFs (the basecamp
-  one is an early hand sketch — the only asset available for that direction).
+- **`index.html`** — a discreet dw-connect link under the hero intro text (a `text-link` + a small note that
+  it needs a logged-in dw-connect membership). No breakdown section.
+- **`i18n.js`** — 2 keys per language: `index.dwConnectLink` + `index.dwConnectNote` (CZ+EN). Parity held.
+- **`style.css`** — small `.hero-dwlink` / `.hero-dwlink-note` styling.
 
-**What did NOT change:** no backend/CDK; the `CONFIG` row schema is unchanged (links/images are frontend-side).
+**What did NOT change:** no backend/CDK; `CONFIG.BREAKDOWN` stays as the `/config` fallback (from C1) but is
+not rendered — `main.js` no longer reads it.
 
-**Verification:** gate green (`ruff` clean, **77 passed**), i18n parity 122=122, `node --check` on the three
-JS files. Browser-driven (no-cache local serve): 3 cards render from CONFIG with correct targets + photos,
-each card is an `<a>` to the right dw-connect page (`target=_blank`, `rel="noopener noreferrer"`), cover
-images load (800×450 / 800×450 / 800×280) and are clipped to a uniform 16:9, CZ↔EN re-translates names +
-`alt`, and **no horizontal overflow at 1280 / 375 / 320 px** (cards collapse to one column on mobile).
+**Verification:** gate green (`ruff` clean, **77 passed**), i18n parity holds, `node --check` on the JS.
+Link points to the members-only `https://dw-connect.org/projects/tenovice-project`, opens in a new tab
+(`target=_blank`, `rel="noopener noreferrer"`), CZ↔EN re-translates, no layout regression at desktop/375 px.
 
 ---
 
