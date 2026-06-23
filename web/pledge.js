@@ -315,7 +315,10 @@ async function submitPledge(event) {
     if (!response.ok) {
       throw new Error('Failed to save pledge');
     }
-    window.location.href = 'success.html';
+    // Tell the success page which payment path to show: one-time -> QR,
+    // monthly -> standing-order bank details (E1).
+    const type = values.is_monthly ? 'monthly' : 'one-time';
+    window.location.href = `success.html?type=${type}`;
   } catch (error) {
     console.error('Error saving pledge:', error);
     showError('formError', t('pledge.errSave'));

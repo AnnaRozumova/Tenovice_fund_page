@@ -148,8 +148,36 @@ const TRANSLATIONS = {
     'success.thankYou': 'Děkujeme',
     'success.heading': 'Tvůj příslib byl uložen',
     'success.description':
-      'Děkujeme za podporu projektu Těnovice. Teď se můžeš vrátit na úvodní stránku a zobrazit aktualizovaný přehled sbírky.',
+      'Děkujeme za podporu projektu Těnovice. Příslib je veřejný slib — peníze teď pošli sám/sama podle údajů níže.',
     'success.another': 'Zadat další příslib',
+
+    // Success page — payment instructions (E1)
+    'payment.oneTimeHeading': 'Pošli svůj jednorázový dar',
+    'payment.oneTimeIntro':
+      'Naskenuj QR kód v bankovní aplikaci, nebo použij bankovní údaje níže.',
+    'payment.monthlyHeading': 'Nastav si trvalý příkaz',
+    'payment.monthlyIntro':
+      'Nastav si v bance měsíční trvalý příkaz podle údajů níže.',
+    'payment.monthlyNote':
+      'Měsíční trvalý příkaz si nastav ve své bance podle údajů níže. Pro opakované platby není QR kód.',
+    'payment.qrCzAlt': 'QR kód pro platbu na český účet',
+    'payment.qrCzCaption': 'Český účet (CZK)',
+    'payment.qrIntlAlt': 'QR kód pro mezinárodní platbu',
+    'payment.qrIntlCaption': 'Mezinárodní účet (EUR)',
+    'payment.czHeading': 'Český účet (CZK)',
+    'payment.intlHeading': 'Mezinárodní účet (EUR)',
+    'payment.accountName': 'Majitel účtu',
+    'payment.accountNumber': 'Číslo účtu',
+    'payment.variableSymbol': 'Variabilní symbol',
+    'payment.message': 'Zpráva pro příjemce',
+    'payment.messageValue': 'Prijmeni/Dar/Tenovice',
+    'payment.czHint':
+      'Variabilní symbol je datum tvé platby (RRMMDD) následované 0108. „Prijmeni“ nahraď svým příjmením.',
+    'payment.bank': 'Banka',
+    'payment.iban': 'IBAN',
+    'payment.bic': 'BIC',
+    'payment.purpose': 'Účel platby',
+    'payment.copy': 'Kopírovat',
   },
 
   en: {
@@ -289,8 +317,36 @@ const TRANSLATIONS = {
     'success.thankYou': 'Thank you',
     'success.heading': 'Your pledge was saved',
     'success.description':
-      'Thank you for supporting the Tenovice Project. You can now return to the homepage and see the refreshed campaign view.',
+      'Thank you for supporting the Tenovice Project. A pledge is a public promise — now send the gift yourself using the details below.',
     'success.another': 'Make another pledge',
+
+    // Success page — payment instructions (E1)
+    'payment.oneTimeHeading': 'Send your one-time gift',
+    'payment.oneTimeIntro':
+      'Scan the QR code with your banking app, or use the bank details below.',
+    'payment.monthlyHeading': 'Set up a standing order',
+    'payment.monthlyIntro':
+      'Set up a monthly standing order in your bank using the details below.',
+    'payment.monthlyNote':
+      'Set up a monthly standing order in your bank using the details below. There is no QR code for recurring payments.',
+    'payment.qrCzAlt': 'Czech payment QR code',
+    'payment.qrCzCaption': 'Czech bank account (CZK)',
+    'payment.qrIntlAlt': 'International payment QR code',
+    'payment.qrIntlCaption': 'International account (EUR)',
+    'payment.czHeading': 'Czech account (CZK)',
+    'payment.intlHeading': 'International account (EUR)',
+    'payment.accountName': 'Account holder',
+    'payment.accountNumber': 'Account number',
+    'payment.variableSymbol': 'Variable symbol',
+    'payment.message': 'Message for recipient',
+    'payment.messageValue': 'Surname/Gift/Tenovice',
+    'payment.czHint':
+      'The variable symbol is the date of your payment (YYMMDD) followed by 0108. Replace “Surname” with your own.',
+    'payment.bank': 'Bank',
+    'payment.iban': 'IBAN',
+    'payment.bic': 'BIC',
+    'payment.purpose': 'Purpose',
+    'payment.copy': 'Copy',
   },
 };
 
