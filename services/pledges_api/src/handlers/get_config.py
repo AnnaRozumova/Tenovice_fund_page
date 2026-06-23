@@ -45,11 +45,5 @@ def handler(event, context):
             },
         )
 
-    except ClientError as e:
-        return response(
-            500,
-            {
-                "error": "Failed to fetch config",
-                "detail": str(e),
-            },
-        )
+    except ClientError:
+        return response(500, {"error": "Failed to fetch config"})

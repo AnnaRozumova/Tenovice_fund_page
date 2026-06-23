@@ -13,8 +13,9 @@ table = dynamodb.Table(os.environ["PLEDGES_TABLE_NAME"])
 # Fields the caller is allowed to see about their own pledge. The raw DynamoDB
 # item is never returned wholesale — we project an explicit allowlist so internal
 # bookkeeping fields cannot leak, and so the endpoint stays safe as the schema grows.
+# The email is intentionally NOT echoed back: the caller supplied it in the lookup
+# query, so returning it discloses nothing and keeps the response minimal (H1).
 PLEDGE_FIELDS = (
-    "email",
     "amount",
     "is_monthly",
     "campaign_total",

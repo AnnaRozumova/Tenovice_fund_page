@@ -49,7 +49,7 @@ AWS CDK (Python) describes & deploys all of the above.
 | GET | `/stats` | `get_stats.handler` | reads the `STATS` row (running totals) |
 | GET | `/pledges` | `list_pledges.handler` | `scan`; returns anonymous fields only |
 | POST | `/pledges` | `create_pledge.handler` | upsert by email; adjusts `STATS` |
-| GET | `/pledges/by-email` | `get_pledge_by_email.handler` | query `EmailIndex` (case-insensitive); returns **only the caller's own pledge, projected to an allowlist** (no `pledgeID`/timestamps) |
+| GET | `/pledges/by-email` | `get_pledge_by_email.handler` | query `EmailIndex` (case-insensitive); returns **only the caller's own pledge, projected to an allowlist** (no `pledgeID`/timestamps; the email isn't echoed back either — H1) |
 | GET | `/config` | `get_config.handler` | reads the `CONFIG` row (editable balance / goal / breakdown); documented defaults if the row is absent (C1) |
 | POST | `/config` | `update_config.handler` | **admin-only** write of the `CONFIG` row; shared-secret bearer token, constant-time compare, fails closed (C2) |
 | POST | `/calculate` | `calculate.handler` | **read-only** what-if simulator (D2a); computes impact + projection vs goal from the shared pledge math; reads `STATS`/`CONFIG`, writes nothing, no auth |
@@ -146,6 +146,21 @@ rows — no destructive migration. The `STATS` supporter tally (still stored und
 counts pledges: `+1` per new pledge, `+0` on edit.
 
 > The test data in the live table will be reset when the privacy/data-model phase deploys (Phase F).
+
+## Input & error hardening (H1 — pre-deploy review)
+
+A cross-cutting security/quality review over the whole A–E change set (vs `main`) found **no
+critical/high/medium** issues. Fixes applied:
+- **Non-finite numbers** (`NaN`/`Infinity`) are rejected as a clean **400** in `domain/validation.py` — they
+  previously passed validation and crashed a handler with an uncaught exception (→ 500). Integer CONFIG fields
+  also reject fractional input instead of silently truncating it.
+- **`500` responses no longer echo internal exception detail** (`str(e)`/boto text) to the client — generic
+  message only.
+- **`/pledges/by-email` no longer echoes the caller's own email** back in the body (they supplied it in the
+  query; minimization). `web/pledge.js` shows the entered email in the existing-pledge summary instead.
+
+Deferred (tracked): wildcard CORS lock → **G1** (needs the domain); `get_stats` no-row default, atomic STATS
+update, and integer-EUR enforcement → follow-ups; a "messages are public" copy hint for Anna.
 
 ## Development commands
 

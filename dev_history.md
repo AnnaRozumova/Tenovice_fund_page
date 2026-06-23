@@ -5,6 +5,48 @@ and how it was verified. Companion to `CLAUDE.md` (developer quick-start) and `d
 
 ---
 
+## 2026-06-23 — H1: pre-deploy security & quality review pass (+ low-severity hardening)
+
+**Why:** before deploy (Phase F) and real anonymous pledges, run one cross-cutting security + quality review
+over the **whole A–E change set vs `main`** (53 files) — the check no single per-step review saw at once.
+Scope (H1): privacy/PII, admin-secret handling, input bounds, CORS. No AWS (local).
+
+**Review.** Multi-agent pass across six dimensions (privacy, admin-secret, input-validation, infra/CORS/IAM,
+frontend-XSS, general correctness), each finding then independently verified. **Result: 0 critical / 0 high /
+0 medium.** Verified clean: admin secret (D6 — `hmac.compare_digest`, fails closed, never in repo/logs),
+frontend XSS (pledge `message` rendered via `textContent`, not `innerHTML`), privacy core (`name` gone,
+by-email allowlist, email off public endpoints, no PII in logs).
+
+**Fixed (low/info, in scope):**
+- **L1 — non-finite numbers** (`domain/validation.py`): `NaN`/`Infinity` in `amount` passed validation, then
+  raised an uncaught exception (a `NaN` comparison → `InvalidOperation`; `Infinity` on the uncapped
+  `/calculate` path → crash in the JSON encoder) → **HTTP 500**. Added an `is_finite()` guard in
+  `_require_positive_decimal`; the int helpers reject fractional floats (silent `int()` truncation) and catch
+  `OverflowError`; `_validate_end_date` catches `OverflowError` too. All return a clean **400** now.
+- **L2 — error-detail leak:** the six handler `500` responses returned the internal `str(e)`/boto text to the
+  client (a `"detail"` field). Removed — generic message only.
+- **I1 — by-email minimization:** dropped `email` from the `get_pledge_by_email` allowlist (the caller
+  supplied it in the query; echoing it back disclosed nothing). Coordinated frontend change in `web/pledge.js`
+  (the existing-pledge summary now shows the entered email).
+- **I2 — config truncation:** integer CONFIG fields silently truncated non-integer numeric input — now
+  rejected ("must be a whole number").
+
+**Deferred (triaged):** wildcard CORS (`allow_origins=["*"]`) on the API that also hosts `POST /config` →
+lock origins at **G1** (needs the real domain); pre-existing robustness — `get_stats` 500s when the STATS row
+is absent, and `create_pledge`'s read-then-write STATS upsert isn't atomic (race → double-count; near-zero
+risk at our scale) → follow-ups; backend accepts fractional EUR while the UI assumes whole EUR → follow-up;
+the public list echoes the user's free-text `message` (self-deanonymization if they type their own identity)
+→ a copy hint for Anna when the calculator copy is drafted.
+
+**What changed:** `domain/validation.py`; handlers `calculate.py`, `list_pledges.py`, `create_pledge.py`,
+`update_config.py`, `get_config.py`, `get_stats.py`, `get_pledge_by_email.py`; `web/pledge.js`; tests
+`test_validation.py` (+7), `test_get_pledge_by_email.py` (email no longer echoed).
+
+**Verification:** gate green — `ruff` clean, **84 passed** (was 77; +7 H1 tests: NaN/Infinity on `/pledges`
+& `/calculate`, fractional/Infinity config, by-email email-not-echoed). No AWS; not deployed.
+
+---
+
 ## 2026-06-23 — E1: success page shows payment details (QR / standing order)
 
 **Why:** a pledge is only a public promise — no money moves through the site. After saving, the user must

@@ -14,6 +14,7 @@ import pytest
 from domain.validation import (
     MAX_AMOUNT,
     MAX_MESSAGE_LENGTH,
+    validate_calculate_input,
     validate_config_input,
     validate_pledge_input,
 )
@@ -85,6 +86,20 @@ class TestValidateConfigInput:
         cfg = _valid_config()
         del cfg["fundraising_goal"]
         with pytest.raises(ValueError, match="'fundraising_goal' is required"):
+            validate_config_input(cfg)
+
+    def test_fractional_amount_rejected(self):
+        """H1: a non-integer numeric amount must be rejected, not silently truncated."""
+        cfg = _valid_config()
+        cfg["breakdown"][0]["amount"] = 10.5
+        with pytest.raises(ValueError, match="whole number"):
+            validate_config_input(cfg)
+
+    def test_non_finite_field_rejected(self):
+        """H1: Infinity must be a clean 400, not an uncaught OverflowError (500)."""
+        cfg = _valid_config()
+        cfg["fundraising_goal"] = float("inf")
+        with pytest.raises(ValueError, match="whole number"):
             validate_config_input(cfg)
 
 
@@ -258,3 +273,38 @@ class TestValidatePledgeInput:
     def test_message_over_cap_rejected(self):
         with pytest.raises(ValueError, match="message"):
             validate_pledge_input(self._base(message="x" * (MAX_MESSAGE_LENGTH + 1)))
+
+    # --- H1: non-finite amount guard ---
+
+    def test_amount_nan_rejected(self):
+        with pytest.raises(ValueError, match="finite"):
+            validate_pledge_input(self._base(amount=float("nan")))
+
+    def test_amount_infinity_rejected(self):
+        with pytest.raises(ValueError, match="finite"):
+            validate_pledge_input(self._base(amount=float("inf")))
+
+
+class TestValidateCalculateInput:
+    """H1 guards on the read-only simulator input.
+
+    ``amount`` is intentionally uncapped here (the simulator stores nothing), so a
+    non-finite amount would otherwise slip through and crash in the JSON encoder.
+    """
+
+    def _base(self, **overrides):
+        data = {"people": 2, "amount": 100, "is_monthly": False}
+        data.update(overrides)
+        return data
+
+    def test_amount_infinity_rejected(self):
+        with pytest.raises(ValueError, match="finite"):
+            validate_calculate_input(self._base(amount=float("inf")))
+
+    def test_amount_nan_rejected(self):
+        with pytest.raises(ValueError, match="finite"):
+            validate_calculate_input(self._base(amount=float("nan")))
+
+    def test_people_must_be_whole_number(self):
+        with pytest.raises(ValueError, match="whole number"):
+            validate_calculate_input(self._base(people=2.5))
