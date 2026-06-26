@@ -16,7 +16,10 @@ def handler(event, context):
 
     try:
         resp = table.get_item(Key={"pledgeID": "STATS"})
-        stats = resp.get("Item")
+        # The STATS row is absent until the first pledge is created (fresh table).
+        # Default to an empty dict so the totals fall back to zero instead of
+        # raising AttributeError on None — which previously surfaced as a 500 (P1).
+        stats = resp.get("Item") or {}
 
         return response(
             200,

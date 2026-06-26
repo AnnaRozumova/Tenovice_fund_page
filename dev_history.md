@@ -5,6 +5,22 @@ and how it was verified. Companion to `CLAUDE.md` (developer quick-start) and `d
 
 ---
 
+## 2026-06-26 — P1: `get_stats` returns zeros on an empty table (no more 500)
+
+**Why:** a follow-up tracked in H1. `GET /stats` crashed with a **500** whenever the `STATS` row was absent —
+which is the normal state of a freshly deployed table, before the first pledge exists. Surfaced live during
+the first dev-account deploy: `GET /stats` → 500 on the empty table, while every other endpoint answered.
+
+**Fix** (`handlers/get_stats.py`): `resp.get("Item")` returns `None` when the row is missing, and the
+following `stats.get(...)` then raised `AttributeError` on `None` — uncaught (the `except` only caught
+`ClientError`) → 500. Changed to `stats = resp.get("Item") or {}`, so the totals fall back to the existing
+`Decimal("0")` / `0` defaults and the handler answers **200** with zeros.
+
+**Verified:** new `tests/integration/test_get_stats.py` — populated `STATS` returns the row; empty table
+returns 200 with zeros (regression guard for P1). Quality gate green: ruff clean, **86 passed**.
+
+---
+
 ## 2026-06-23 — H1: pre-deploy security & quality review pass (+ low-severity hardening)
 
 **Why:** before deploy (Phase F) and real anonymous pledges, run one cross-cutting security + quality review
