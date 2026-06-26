@@ -236,6 +236,9 @@ tooling and stays English. **Parity gate:** every language must define the same 
 - **CDK context** (`cdk/cdk.json`): `stage` (default `dev`), `project_name` (`fundraising-calculator`),
   `api_name` (`fundraising-api`), `pledges_table_name` (`Pledges`). Table name =
   `{project_name}-{stage}-{pledges_table_name}`. Override with `--context key=value`.
+- **S3 website bucket name** = `{project_name}-{stage}-{AWS::AccountId}-website`. S3 names are **globally
+  unique across all of AWS**, so the account id is included to keep the same app deployable from multiple
+  accounts (dev / prod) without a name clash; `stage` separates environments within one account.
 - **dev stage** → DynamoDB + S3 use `RemovalPolicy.DESTROY` (and S3 `auto_delete_objects`); any other
   stage → `RETAIN`.
 - **Admin secret** (`update_config`): the `ADMIN_SECRET` Lambda env var. CDK reads it from the deploy

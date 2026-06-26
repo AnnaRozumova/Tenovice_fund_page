@@ -5,6 +5,25 @@ and how it was verified. Companion to `CLAUDE.md` (developer quick-start) and `d
 
 ---
 
+## 2026-06-26 — S3 website bucket name is account-unique (multi-account dev/prod)
+
+**Why:** S3 bucket names are **globally unique across all of AWS**. The name was
+`{project_name}-{stage}-website` (e.g. `fundraising-calculator-dev-website`), so the moment the app is
+deployed from a **second account** — a per-developer dev account alongside the shared one — the bucket name
+clashes and `cdk deploy` fails (`...already exists`). Hit live on the first dev-account deploy; worked
+around then with a one-off `-c project_name=…` override.
+
+**Fix** (`cdk/src/constructs/s3_website.py`): bucket name is now
+`{project_name}-{stage}-{Aws.ACCOUNT_ID}-website`. The account id guarantees cross-account uniqueness;
+`stage` still separates environments within one account. The id is a CloudFormation token resolved at
+deploy time (renders as `Fn::Join[…, {Ref: AWS::AccountId}, …]`).
+
+**Verified:** `cdk synth` renders the account-id join; `cdk deploy` to the dev account (026268603137) with
+the **default** `project_name` (no override) now succeeds → bucket `fundraising-calculator-dev-026268603137-website`.
+Enables the dev (agent's account) / prod (Anna's account) split without name collisions.
+
+---
+
 ## 2026-06-26 — P1: `get_stats` returns zeros on an empty table (no more 500)
 
 **Why:** a follow-up tracked in H1. `GET /stats` crashed with a **500** whenever the `STATS` row was absent —
