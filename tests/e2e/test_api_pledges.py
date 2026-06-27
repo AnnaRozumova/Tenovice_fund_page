@@ -63,7 +63,6 @@ class TestUpsertAndLookupFlow:
         email = _unique_email()
         payload = {
             "email": email,
-            "contributors_count": 1,
             "amount": 100,
             "is_monthly": False,
             "message": "E2E create",
@@ -88,7 +87,6 @@ class TestUpsertAndLookupFlow:
         email = _unique_email()
         base = {
             "email": email,
-            "contributors_count": 1,
             "amount": 50,
             "is_monthly": False,
         }
@@ -118,7 +116,6 @@ class TestValidation:
     def test_invalid_email_rejected(self):
         payload = {
             "email": "not-an-email",
-            "contributors_count": 1,
             "amount": 100,
             "is_monthly": False,
         }
@@ -129,7 +126,6 @@ class TestValidation:
     def test_non_positive_amount_rejected(self):
         payload = {
             "email": _unique_email(),
-            "contributors_count": 1,
             "amount": 0,
             "is_monthly": False,
         }
@@ -146,12 +142,12 @@ class TestStatsReflectPledges:
 
         payload = {
             "email": _unique_email(),
-            "contributors_count": 2,
             "amount": 100,
             "is_monthly": False,
         }
         assert requests.post(f"{API_URL}/pledges", json=payload).status_code == 201
 
         after = requests.get(f"{API_URL}/stats").json()
-        assert after["contributors_count"] >= before_contributors + 2
+        # One new pledge = one new supporter (B4).
+        assert after["contributors_count"] >= before_contributors + 1
         assert after["pledged_total"] >= before_total + 100

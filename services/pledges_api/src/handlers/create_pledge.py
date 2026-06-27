@@ -90,7 +90,6 @@ def _create_new_pledge(table, data: dict):
 
     amount: Decimal = data["amount"]
     is_monthly: bool = data["is_monthly"]
-    contributors_count: int = data["contributors_count"]
     end_month: int | None = data["end_month"]
     end_year: int | None = data["end_year"]
 
@@ -104,7 +103,6 @@ def _create_new_pledge(table, data: dict):
     pledge = Pledge(
         pledge_id=pledge_id,
         email=data["email"],
-        contributors_count=contributors_count,
         amount=amount,
         is_monthly=is_monthly,
         created_at=timestamp,
@@ -117,10 +115,11 @@ def _create_new_pledge(table, data: dict):
 
     table.put_item(Item=pledge.to_dynamodb_item())
 
+    # A new pledge is one new supporter (B4: 1 pledge = 1 supporter).
     _adjust_stats(
         table,
         pledged_total_delta=campaign_total,
-        contributors_delta=contributors_count,
+        supporters_delta=1,
         monthly_total_delta=monthly_value,
     )
 
@@ -136,7 +135,6 @@ def _create_new_pledge(table, data: dict):
 def _update_existing_pledge(table, existing_pledge: Pledge, data: dict):
     new_amount: Decimal = data["amount"]
     new_is_monthly: bool = data["is_monthly"]
-    new_contributors_count: int = data["contributors_count"]
     new_end_month: int | None = data["end_month"]
     new_end_year: int | None = data["end_year"]
     new_message = data.get("message")
@@ -146,7 +144,6 @@ def _update_existing_pledge(table, existing_pledge: Pledge, data: dict):
     old_monthly_value: Decimal = (
         existing_pledge.amount if existing_pledge.is_monthly else Decimal("0")
     )
-    old_contributors_count: int = existing_pledge.contributors_count
 
     new_campaign_total, new_monthly_value = _calculate_pledge_values(
         amount=new_amount,
@@ -157,13 +154,12 @@ def _update_existing_pledge(table, existing_pledge: Pledge, data: dict):
 
     pledged_total_delta = new_campaign_total - old_campaign_total
     monthly_total_delta = new_monthly_value - old_monthly_value
-    contributors_delta = new_contributors_count - old_contributors_count
+    # Editing a pledge is still the same one supporter — no change to the count.
 
     set_parts = [
         "email = :email",
         "amount = :amount",
         "is_monthly = :is_monthly",
-        "contributors_count = :contributors_count",
         "campaign_total = :campaign_total",
         "updated_at = :updated_at",
     ]
@@ -173,7 +169,6 @@ def _update_existing_pledge(table, existing_pledge: Pledge, data: dict):
         ":email": data["email"],
         ":amount": new_amount,
         ":is_monthly": new_is_monthly,
-        ":contributors_count": new_contributors_count,
         ":campaign_total": new_campaign_total,
         ":updated_at": updated_at,
     }
@@ -205,7 +200,7 @@ def _update_existing_pledge(table, existing_pledge: Pledge, data: dict):
     _adjust_stats(
         table,
         pledged_total_delta=pledged_total_delta,
-        contributors_delta=contributors_delta,
+        supporters_delta=0,
         monthly_total_delta=monthly_total_delta,
     )
 
@@ -221,13 +216,16 @@ def _update_existing_pledge(table, existing_pledge: Pledge, data: dict):
 def _adjust_stats(
     table,
     pledged_total_delta: Decimal,
-    contributors_delta: int,
+    supporters_delta: int,
     monthly_total_delta: Decimal,
 ):
-    update_expression = "ADD pledged_total :pledged_total_delta, contributors_count :contributors_delta"
+    # The STATS supporter tally is still stored under ``contributors_count`` (the
+    # field the frontend reads); since B4 it counts pledges (1 per supporter), not
+    # a per-pledge group size — +1 on create, +0 on edit.
+    update_expression = "ADD pledged_total :pledged_total_delta, contributors_count :supporters_delta"
     expression_values = {
         ":pledged_total_delta": pledged_total_delta,
-        ":contributors_delta": contributors_delta,
+        ":supporters_delta": supporters_delta,
         ":timestamp": datetime.now(timezone.utc).isoformat(),
     }
 

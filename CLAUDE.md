@@ -69,7 +69,6 @@ Primary key `pledgeID` (String). GSI `EmailIndex` on `email` (projection ALL) fo
 **Pledge row** (`domain/models.py` → `Pledge`):
 - `pledgeID` — UUID
 - `email` — lowercased (the only identity field; never displayed, never on public endpoints)
-- `contributors_count` — how many people this one pledge represents (1–5, cap provisional — see "Input caps")
 - `amount` — pledge amount in EUR (one-time amount, or per-month amount if monthly); 1–100,000
 - `is_monthly` — bool
 - `campaign_total` — the pledge's total campaign impact (see "Pledge math"); stored so it stays stable as months pass
@@ -78,9 +77,13 @@ Primary key `pledgeID` (String). GSI `EmailIndex` on `email` (projection ALL) fo
 - `message?` — optional free text
 - `end_month?`, `end_year?` — present only for monthly pledges
 
+> A pledge represents **one person** (B4). Legacy (pre-B4) rows may still carry a `contributors_count`
+> attribute — it is ignored by the model and never re-written; no destructive migration is performed.
+
 **`STATS` row** (`pledgeID="STATS"`) — running totals:
 - `pledged_total` — sum of `campaign_total`
-- `contributors_count` — sum of pledges' `contributors_count`
+- `contributors_count` — the supporters total; **a count of pledges** (1 per supporter since B4), `+1` on
+  each new pledge, `+0` on edit. (Name kept for the frontend; it no longer sums per-pledge group sizes.)
 - `monthly_total` — sum of monthly `amount`
 - `updated_at`
 
@@ -91,9 +94,9 @@ Primary key `pledgeID` (String). GSI `EmailIndex` on `email` (projection ALL) fo
 - `get_config` falls back to documented defaults when the row is absent. The row is written by the
   admin-only `POST /config` (`update_config`, C2) — guarded by a shared-secret bearer token.
 
-> **`contributors_count`** is the single canonical field for the supporters total, used end-to-end
-> (DynamoDB `STATS` → `GET /stats` → `web/main.js` + `web/pledge.js`). The old frontend `pledgers_count`
-> reads were removed in B2.
+> **`contributors_count`** (on the `STATS` row) is the single canonical field for the supporters total,
+> used end-to-end (DynamoDB `STATS` → `GET /stats` → `web/main.js`). The old frontend `pledgers_count`
+> reads were removed in B2; since B4 the value is a **pledge count** (1 per supporter), not a sum of group sizes.
 
 ## Pledge math (keep the JS preview ↔ Python save in lockstep)
 
@@ -122,10 +125,16 @@ stored **as-is (no hashing)**, used only to recognize a returning pledger so the
 reads); all four handlers route through the shared `utils/response.py` (no more per-handler encoders).
 
 **B3 — input caps** (`domain/validation.py` constants): `amount` ≤ `MAX_AMOUNT` (100,000),
-`contributors_count` ≤ `MAX_CONTRIBUTORS_COUNT` (5), `message` ≤ `MAX_MESSAGE_LENGTH` (500 chars); min ≥ 1.
-Over-cap input is rejected with a clear error. Caps are **provisional** (the contributors cap pending a
-product decision on the multi-person-pledge feature) and move into the editable `CONFIG` row in Phase C.
-Caps are enforced **server-side only** for now; mirroring them in the form is deferred to D2.
+`message` ≤ `MAX_MESSAGE_LENGTH` (500 chars); min ≥ 1. Over-cap input is rejected with a clear error. Caps
+are **provisional** and move into the editable `CONFIG` row in Phase C. Caps are enforced **server-side
+only** for now; mirroring them in the form is deferred to D2.
+
+**B4 — `contributors_count` removed from the pledge.** A saved pledge represents **one person** (Anna+Ondra
+decision): the "how many people" what-if lives in the calculator/simulator (Phase D), not the stored pledge.
+`contributors_count` is gone from the model, validation (incl. the B3 cap), the create/update handlers, the
+`by-email` allowlist, the public list, and the frontend form/payload. The DB column **may remain** on legacy
+rows — no destructive migration. The `STATS` supporter tally (still stored under `contributors_count`) now
+counts pledges: `+1` per new pledge, `+0` on edit.
 
 > The test data in the live table will be reset when the privacy/data-model phase deploys (Phase F).
 

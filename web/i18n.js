@@ -55,7 +55,6 @@ const TRANSLATIONS = {
     'pledge.existingHeading': 'Našli jsme tvůj příslib',
     'pledge.existingIntro':
       'Pro tento e-mail jsme našli příslib. Můžeš si ho zobrazit a rozhodnout, jestli ho upravíš.',
-    'pledge.fieldContributors': 'Počet přispěvatelů',
     'pledge.fieldAmount': 'Částka',
     'pledge.fieldAmountEur': 'Částka (EUR)',
     'pledge.fieldType': 'Typ',
@@ -75,7 +74,6 @@ const TRANSLATIONS = {
     'pledge.previewMonthlyEffect': 'Měsíční příslib',
     'pledge.previewPledgedTotal': 'Nově celkem přislíbeno',
     'pledge.previewMonthlyTotal': 'Nově měsíčně přislíbeno',
-    'pledge.previewContributors': 'Nově počet přispěvatelů',
     'pledge.previewProgress': 'Postup k cíli',
     'pledge.previewOf': 'z',
     'pledge.monthlyNote':
@@ -116,7 +114,6 @@ const TRANSLATIONS = {
     'pledge.statusCreateOneTime': 'Vytváříš nový jednorázový příslib.',
     'pledge.statusNoStats': 'Nepodařilo se načíst aktuální statistiky. Náhled nemusí být dostupný.',
     'pledge.errEmailRequired': 'Zadej prosím svůj e-mail.',
-    'pledge.errContributors': 'Počet přispěvatelů musí být větší než 0.',
     'pledge.errAmount': 'Částka musí být větší než 0.',
     'pledge.errEndMonth': 'Měsíc konce musí být mezi 1 a 12.',
     'pledge.errEndYear': 'Zadej prosím platný rok konce.',
@@ -177,7 +174,6 @@ const TRANSLATIONS = {
     'pledge.existingHeading': 'Existing pledge found',
     'pledge.existingIntro':
       'We found a pledge for this email. You can review it and choose whether to update it.',
-    'pledge.fieldContributors': 'Contributors count',
     'pledge.fieldAmount': 'Amount',
     'pledge.fieldAmountEur': 'Amount (EUR)',
     'pledge.fieldType': 'Type',
@@ -197,7 +193,6 @@ const TRANSLATIONS = {
     'pledge.previewMonthlyEffect': 'Monthly effect',
     'pledge.previewPledgedTotal': 'Updated pledged total',
     'pledge.previewMonthlyTotal': 'Updated monthly total',
-    'pledge.previewContributors': 'Updated contributors count',
     'pledge.previewProgress': 'Updated progress toward common goal',
     'pledge.previewOf': 'of',
     'pledge.monthlyNote':
@@ -238,7 +233,6 @@ const TRANSLATIONS = {
     'pledge.statusCreateOneTime': 'Creating new one-time pledge.',
     'pledge.statusNoStats': 'Could not load current stats. Preview may be unavailable.',
     'pledge.errEmailRequired': 'Please enter your email.',
-    'pledge.errContributors': 'Contributors count must be greater than 0.',
     'pledge.errAmount': 'Amount must be greater than 0.',
     'pledge.errEndMonth': 'End month must be between 1 and 12.',
     'pledge.errEndYear': 'Please enter a valid end year.',

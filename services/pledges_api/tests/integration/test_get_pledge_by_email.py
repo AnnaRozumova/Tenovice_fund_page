@@ -79,7 +79,6 @@ class TestGetPledgeByEmail:
         # The caller's own pledge fields are present...
         assert body["email"] == "owner@example.com"
         assert body["amount"] == 100
-        assert body["contributors_count"] == 2
         assert body["message"] == "hi"
 
         # ...but internal bookkeeping fields never leak.
@@ -87,6 +86,9 @@ class TestGetPledgeByEmail:
         assert "created_at" not in body
         assert "updated_at" not in body
         assert "name" not in body
+        # B4: contributors_count is no longer part of the pledge; even a legacy row
+        # that still stores it must not surface it (dropped from the allowlist).
+        assert "contributors_count" not in body
 
     def test_lookup_is_case_insensitive(self, handler_and_table):
         handler, table = handler_and_table

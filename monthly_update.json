@@ -1,6 +1,5 @@
 {
   "email": "terminal-monthly@example.com",
-  "contributors_count": 5,
   "amount": 1500,
   "is_monthly": true,
   "end_month": 8,

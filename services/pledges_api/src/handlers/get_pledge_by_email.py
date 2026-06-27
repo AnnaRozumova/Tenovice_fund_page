@@ -15,7 +15,6 @@ table = dynamodb.Table(os.environ["PLEDGES_TABLE_NAME"])
 # bookkeeping fields cannot leak, and so the endpoint stays safe as the schema grows.
 PLEDGE_FIELDS = (
     "email",
-    "contributors_count",
     "amount",
     "is_monthly",
     "campaign_total",

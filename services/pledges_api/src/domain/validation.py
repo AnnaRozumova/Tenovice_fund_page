@@ -6,11 +6,10 @@ from decimal import Decimal, InvalidOperation
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 # Provisional input caps. These guard STATS against fat-finger / abusive values.
-# The contributors cap is tentative — pending a product decision on whether the
-# "one pledge on behalf of several people" feature stays at all. Moving these into
-# the editable CONFIG row is planned (Phase C).
+# Moving these into the editable CONFIG row is planned (Phase C). There is no
+# contributors cap: a saved pledge represents one person (B4); the "how many
+# people" what-if lives in the calculator/simulator, not the stored pledge.
 MAX_AMOUNT = Decimal("100000")
-MAX_CONTRIBUTORS_COUNT = 5
 MAX_MESSAGE_LENGTH = 500
 
 # The campaign breakdown directions, by stable identifier key. The CONFIG row
@@ -46,26 +45,6 @@ def _require_positive_decimal(data: dict, field: str, maximum: Decimal | None = 
         raise ValueError(f"'{field}' must not exceed {maximum:,.0f}")
 
     return decimal_value
-
-
-def _require_positive_int(data: dict, field: str, maximum: int | None = None) -> int:
-    value = data.get(field)
-
-    if value is None:
-        raise ValueError(f"'{field}' is required")
-
-    try:
-        int_value = int(value)
-    except (ValueError, TypeError) as exc:
-        raise ValueError(f"'{field}' must be an integer") from exc
-
-    if int_value < 1:
-        raise ValueError(f"'{field}' must be at least 1")
-
-    if maximum is not None and int_value > maximum:
-        raise ValueError(f"'{field}' must not exceed {maximum}")
-
-    return int_value
 
 
 def _require_non_negative_int(data: dict, field: str) -> int:
@@ -106,9 +85,6 @@ def validate_pledge_input(data: dict) -> dict:
     if not EMAIL_RE.match(email):
         raise ValueError("'email' must be a valid email address")
 
-    contributors_count = _require_positive_int(
-        data, "contributors_count", maximum=MAX_CONTRIBUTORS_COUNT
-    )
     amount = _require_positive_decimal(data, "amount", maximum=MAX_AMOUNT)
     is_monthly = _require_bool(data, "is_monthly")
 
@@ -120,7 +96,6 @@ def validate_pledge_input(data: dict) -> dict:
 
     validated = {
         "email": email,
-        "contributors_count": contributors_count,
         "amount": amount,
         "is_monthly": is_monthly,
         "message": message.strip() if isinstance(message, str) and message.strip() else None,

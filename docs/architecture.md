@@ -86,7 +86,6 @@ Single DynamoDB table. PK `pledgeID` (String); GSI `EmailIndex` on `email` (proj
 |-------|------|-------|
 | `pledgeID` | String | UUID |
 | `email` | String | lowercased; the only identity field (never displayed, never on public endpoints) |
-| `contributors_count` | Number | how many people one pledge represents (≥ 1) |
 | `amount` | Number | EUR; one-time amount, or per-month amount if monthly |
 | `is_monthly` | Bool | |
 | `campaign_total` | Number | the pledge's total campaign impact (see "Pledge math"); stored so it stays stable |
@@ -95,8 +94,12 @@ Single DynamoDB table. PK `pledgeID` (String); GSI `EmailIndex` on `email` (proj
 | `message?` | String | optional |
 | `end_month?`, `end_year?` | Number | present only for monthly pledges |
 
+A pledge represents **one person** (B4). Legacy (pre-B4) rows may still carry a `contributors_count`
+attribute; it is ignored and never re-written (no destructive migration).
+
 **`STATS` row** (`pledgeID="STATS"`): `pledged_total` (Σ `campaign_total`), `contributors_count`
-(Σ pledges' `contributors_count`), `monthly_total` (Σ monthly `amount`), `updated_at`.
+(the supporters total — a **count of pledges**, `+1` per new pledge, `+0` on edit since B4),
+`monthly_total` (Σ monthly `amount`), `updated_at`.
 
 **`CONFIG` row** (`pledgeID="CONFIG"`, added C1): the editable campaign numbers — `current_balance`,
 `fundraising_goal`, and `breakdown` (a list of `{key, amount}`, where `key` is a stable identifier such as
@@ -104,14 +107,15 @@ Single DynamoDB table. PK `pledgeID` (String); GSI `EmailIndex` on `email` (proj
 handler falls back to documented defaults when the row is absent, so the site works before it is seeded.
 The row is written by the admin-only `POST /config` (`update_config`, C2; see "Admin secret" below).
 
-> `contributors_count` is the single canonical field for the supporters total, used end-to-end
-> (`STATS` → `GET /stats` → `web/main.js` + `web/pledge.js`). The old `pledgers_count` reads were removed
-> in B2.
+> The `STATS` `contributors_count` is the single canonical field for the supporters total, used end-to-end
+> (`STATS` → `GET /stats` → `web/main.js`). The old `pledgers_count` reads were removed in B2; since B4 it
+> is a **pledge count** (1 per supporter), not a sum of per-pledge group sizes.
 
 ## Pledge math (defined once per side, kept in lockstep)
 
 The calculator preview (`web/pledge.js`) and the saved totals (`create_pledge.py`) **must use the same
-formula** — change one, change both.
+formula** — change one, change both. (Phase D moves this to a single backend `POST /calculate` source of
+truth that the calculator displays; until then the JS preview mirrors `create_pledge.py`.)
 
 - **One-time:** campaign impact = `amount`; monthly effect = 0.
 - **Monthly** (runs from now until `end_month/end_year` inclusive):
@@ -138,9 +142,13 @@ Locked decisions for the phase (full rationale lives in the project's decision l
 3. ~~**Harden `/pledges/by-email`**~~ — **done (B1)**; returns only the caller's own pledge fields.
 4. ~~**Canonicalize stats on `contributors_count`**~~ — **done (B2)**; frontend `pledgers_count` reads removed.
 5. ~~**One shared `response()`/`DecimalEncoder` util**~~ — **done (B2)**; all four handlers use `utils/response.py`.
-6. ~~**Add upper bounds** on `amount` and `contributors_count`~~ — **done (B3)**; also `message` length.
-   Caps (`amount` ≤ 100,000, `contributors_count` ≤ 5, `message` ≤ 500) are provisional constants in
-   `domain/validation.py`, server-side only; they move to the `CONFIG` row in Phase C.
+6. ~~**Add upper bounds** on `amount`~~ — **done (B3)**; also `message` length. Caps (`amount` ≤ 100,000,
+   `message` ≤ 500) are provisional constants in `domain/validation.py`, server-side only; they move to the
+   `CONFIG` row in Phase C.
+7. ~~**Remove `contributors_count` from the pledge**~~ — **done (B4)**; a pledge is one person (the "how
+   many people" what-if lives in the Phase-D calculator/simulator). No contributors cap; the field left the
+   model/validation/handlers/frontend; legacy DB rows may keep it (no destructive migration). `STATS`
+   supporter tally now counts pledges (1 per supporter).
 
 Doing this early is cheap (only test data exists); it gets painful once real friends pledge. See
 `dev_history.md` for sequencing.
