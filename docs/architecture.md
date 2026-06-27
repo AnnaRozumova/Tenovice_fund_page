@@ -96,8 +96,9 @@ Single DynamoDB table. PK `pledgeID` (String); GSI `EmailIndex` on `email` (proj
 **`STATS` row** (`pledgeID="STATS"`): `pledged_total` (Σ `campaign_total`), `contributors_count`
 (Σ pledges' `contributors_count`), `monthly_total` (Σ monthly `amount`), `updated_at`.
 
-> The frontend currently reads `pledgers_count`, while the backend stores `contributors_count` →
-> the supporters headline shows 0. Canonicalizing on `contributors_count` is planned.
+> `contributors_count` is the single canonical field for the supporters total, used end-to-end
+> (`STATS` → `GET /stats` → `web/main.js` + `web/pledge.js`). The old `pledgers_count` reads were removed
+> in B2.
 
 ## Pledge math (defined once per side, kept in lockstep)
 
@@ -127,10 +128,9 @@ Locked decisions for the phase (full rationale lives in the project's decision l
    irreversible migration for marginal gain; minimization comes from storing no names + keeping email off
    every public endpoint.
 3. ~~**Harden `/pledges/by-email`**~~ — **done (B1)**; returns only the caller's own pledge fields.
-4. **Canonicalize stats on `contributors_count`** (remove the frontend `pledgers_count` reads). *(B2)*
-5. **One shared `response()`/`DecimalEncoder` util** (today each handler defines its own; `create_pledge`
-   has none; `utils/response.py` is empty).
-6. **Add upper bounds** on `amount` and `contributors_count` (keeps `STATS` sane, anti-troll).
+4. ~~**Canonicalize stats on `contributors_count`**~~ — **done (B2)**; frontend `pledgers_count` reads removed.
+5. ~~**One shared `response()`/`DecimalEncoder` util**~~ — **done (B2)**; all four handlers use `utils/response.py`.
+6. **Add upper bounds** on `amount` and `contributors_count` (keeps `STATS` sane, anti-troll). *(B3)*
 
 Doing this early is cheap (only test data exists); it gets painful once real friends pledge. See
 `dev_history.md` for sequencing.

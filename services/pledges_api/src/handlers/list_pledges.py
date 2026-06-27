@@ -1,29 +1,13 @@
 """List all pledges anonymously"""
-import json
 import os
 from decimal import Decimal
 
 import boto3
 from botocore.exceptions import ClientError
 
+from utils.response import response
 
 dynamodb = boto3.resource("dynamodb")
-
-class DecimalEncoder(json.JSONEncoder):
-    def default(self, obj):
-        if isinstance(obj, Decimal):
-            return float(obj)
-        return super().default(obj)
-
-
-def _response(status: int, body: dict):
-    return {
-        "statusCode": status,
-        "headers": {
-            "content-type": "application/json",
-        },
-        "body": json.dumps(body, cls=DecimalEncoder),
-    }
 
 
 def handler(event, context):
@@ -31,8 +15,8 @@ def handler(event, context):
     table = dynamodb.Table(table_name)
 
     try:
-        response = table.scan()
-        items = response.get("Items", [])
+        scan_result = table.scan()
+        items = scan_result.get("Items", [])
 
         pledges = []
         for item in items:
@@ -57,10 +41,10 @@ def handler(event, context):
             reverse=True,
         )
 
-        return _response(200, {"pledges": pledges})
+        return response(200, {"pledges": pledges})
 
     except ClientError as e:
-        return _response(
+        return response(
             500,
             {
                 "error": "Failed to list pledges",
