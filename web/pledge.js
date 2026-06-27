@@ -385,7 +385,9 @@ function enterEditMode() {
 }
 
 function populateExistingSummary(data) {
-  $('existingEmail').textContent = data.email || '-';
+  // The by-email response no longer echoes the email (H1); show the one the user
+  // just entered for the lookup (already stored in pledgeEmail).
+  $('existingEmail').textContent = pledgeEmail || '-';
   $('existingAmount').textContent = formatCurrency(Number(data.amount || 0));
   $('existingCampaignTotal').textContent = formatCurrency(Number(data.campaign_total || 0));
   $('existingMessage').textContent = data.message ? data.message : '-';

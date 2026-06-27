@@ -77,7 +77,6 @@ class TestGetPledgeByEmail:
         body = json.loads(response["body"])
 
         # The caller's own pledge fields are present...
-        assert body["email"] == "owner@example.com"
         assert body["amount"] == 100
         assert body["message"] == "hi"
 
@@ -86,6 +85,8 @@ class TestGetPledgeByEmail:
         assert "created_at" not in body
         assert "updated_at" not in body
         assert "name" not in body
+        # H1: the email is no longer echoed back — the caller supplied it themselves.
+        assert "email" not in body
         # B4: contributors_count is no longer part of the pledge; even a legacy row
         # that still stores it must not surface it (dropped from the allowlist).
         assert "contributors_count" not in body
@@ -96,7 +97,9 @@ class TestGetPledgeByEmail:
 
         response = _call(handler, "Owner@Example.COM")
         assert response["statusCode"] == 200
-        assert json.loads(response["body"])["email"] == "owner@example.com"
+        # The pledge is found regardless of case (email is matched lowercased); the
+        # email isn't echoed (H1), so assert on a returned field instead.
+        assert json.loads(response["body"])["amount"] == 100
 
     def test_unknown_email_returns_404(self, handler_and_table):
         handler, _ = handler_and_table

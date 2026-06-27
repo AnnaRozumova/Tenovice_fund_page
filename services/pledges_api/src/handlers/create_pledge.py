@@ -40,8 +40,8 @@ def handler(event, context):
 
         return _create_new_pledge(table, validated)
 
-    except ClientError as e:
-        return response(500, {"error": "Failed to process pledge", "detail": str(e)})
+    except ClientError:
+        return response(500, {"error": "Failed to process pledge"})
 
 
 def _find_pledge_by_email(table, email: str):

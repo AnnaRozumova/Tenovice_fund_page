@@ -66,7 +66,7 @@ def handler(event, context):
                 "breakdown": validated["breakdown"],
             }
         )
-    except ClientError as e:
-        return response(500, {"error": "Failed to update config", "detail": str(e)})
+    except ClientError:
+        return response(500, {"error": "Failed to update config"})
 
     return response(200, {"message": "Config updated"})

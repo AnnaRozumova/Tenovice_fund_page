@@ -42,11 +42,5 @@ def handler(event, context):
 
         return response(200, {"pledges": pledges})
 
-    except ClientError as e:
-        return response(
-            500,
-            {
-                "error": "Failed to list pledges",
-                "detail": str(e),
-            },
-        )
+    except ClientError:
+        return response(500, {"error": "Failed to list pledges"})

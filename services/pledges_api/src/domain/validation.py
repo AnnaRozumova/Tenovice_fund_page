@@ -38,6 +38,12 @@ def _require_positive_decimal(data: dict, field: str, maximum: Decimal | None = 
     except (InvalidOperation, ValueError) as exc:
         raise ValueError(f"'{field}' must be a valid number") from exc
 
+    # Reject NaN / Infinity / -Infinity. They construct fine but blow up later: a
+    # NaN comparison raises InvalidOperation, and Infinity slips past an uncapped
+    # path (the simulator) and crashes in the JSON encoder. Catch them as a 400.
+    if not decimal_value.is_finite():
+        raise ValueError(f"'{field}' must be a finite number")
+
     if decimal_value <= 0:
         raise ValueError(f"'{field}' must be greater than 0")
 
@@ -57,9 +63,15 @@ def _require_non_negative_int(data: dict, field: str) -> int:
     if isinstance(value, bool):
         raise ValueError(f"'{field}' must be an integer")
 
+    # A fractional float (e.g. 10.5) would be silently truncated by int(); reject it.
+    # is_integer() is also False for inf/nan, so this catches those before int() can
+    # raise an uncaught OverflowError (Infinity → 500).
+    if isinstance(value, float) and not value.is_integer():
+        raise ValueError(f"'{field}' must be a whole number")
+
     try:
         int_value = int(value)
-    except (ValueError, TypeError) as exc:
+    except (ValueError, TypeError, OverflowError) as exc:
         raise ValueError(f"'{field}' must be an integer") from exc
 
     if int_value < 0:
@@ -78,9 +90,13 @@ def _require_positive_int(data: dict, field: str) -> int:
     if isinstance(value, bool):
         raise ValueError(f"'{field}' must be an integer")
 
+    # Reject fractional floats (silent int() truncation) and inf/nan up front.
+    if isinstance(value, float) and not value.is_integer():
+        raise ValueError(f"'{field}' must be a whole number")
+
     try:
         int_value = int(value)
-    except (ValueError, TypeError) as exc:
+    except (ValueError, TypeError, OverflowError) as exc:
         raise ValueError(f"'{field}' must be an integer") from exc
 
     if int_value < 1:
@@ -115,12 +131,12 @@ def _validate_end_date(data: dict, *, reject_past: bool) -> tuple[int, int]:
 
     try:
         end_month = int(end_month)
-    except (ValueError, TypeError) as exc:
+    except (ValueError, TypeError, OverflowError) as exc:
         raise ValueError("'end_month' must be an integer") from exc
 
     try:
         end_year = int(end_year)
-    except (ValueError, TypeError) as exc:
+    except (ValueError, TypeError, OverflowError) as exc:
         raise ValueError("'end_year' must be an integer") from exc
 
     if end_month < 1 or end_month > 12:

@@ -64,10 +64,8 @@ def handler(event, context):
 
     try:
         current_total, goal = _read_baseline(table)
-    except ClientError as e:
-        return response(
-            500, {"error": "Failed to read campaign totals", "detail": str(e)}
-        )
+    except ClientError:
+        return response(500, {"error": "Failed to read campaign totals"})
 
     projected_total = current_total + total_impact
     baseline_pct = _progress_pct(current_total, goal)
