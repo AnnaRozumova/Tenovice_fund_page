@@ -159,8 +159,9 @@ critical/high/medium** issues. Fixes applied:
 - **`/pledges/by-email` no longer echoes the caller's own email** back in the body (they supplied it in the
   query; minimization). `web/pledge.js` shows the entered email in the existing-pledge summary instead.
 
-Deferred (tracked): wildcard CORS lock → **G1** (needs the domain); `get_stats` no-row default, atomic STATS
-update, and integer-EUR enforcement → follow-ups; a "messages are public" copy hint for Anna.
+Deferred (tracked): wildcard CORS lock → **G1** (needs the domain); atomic STATS update and integer-EUR
+enforcement → follow-ups; a "messages are public" copy hint for Anna. (`get_stats` no-row default —
+**done 2026-06-26, P1**: returns 200 with zeros on an empty table.)
 
 ## Development commands
 
