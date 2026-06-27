@@ -74,7 +74,7 @@ body {
 .lang-toggle {
   display: inline-flex;
   align-items: center;
-  gap: 6px;
+  gap: 3px;
 }
 
 .lang-toggle.corner {
@@ -96,10 +96,12 @@ body {
   border: none;
   background: transparent;
   color: var(--text-light);
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   font-weight: 500;
   letter-spacing: 0.04em;
-  padding: 2px 2px;
+  /* Deliberately small & subtle (Martin's call): a low-frequency switch that
+     should stay out of the way, tucked into the card corner. */
+  padding: 4px 5px;
   cursor: pointer;
   transition: var(--transition);
 }
@@ -115,7 +117,7 @@ body {
 
 .lang-sep {
   color: var(--text-light);
-  font-size: 0.8rem;
+  font-size: 0.75rem;
   user-select: none;
 }
 
@@ -165,7 +167,9 @@ body {
   font-size: 1.25rem;
   color: var(--text-light);
   line-height: 1.8;
-  text-align: left;
+  text-align: justify;
+  -webkit-hyphens: auto;
+  hyphens: auto;
 }
 
 .hero-banner {
@@ -533,6 +537,7 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 12px;
+  min-height: 44px;
   font-weight: 600;
   cursor: pointer;
 }
@@ -913,10 +918,12 @@ body {
 
 /* Zones 1 + 2: simulator card */
 .sim-card {
+  position: relative;
   background: var(--bg-white);
   border-radius: var(--border-radius);
   box-shadow: var(--shadow-lg);
-  padding: 32px;
+  /* Extra top room so the centered heading clears the corner language toggle. */
+  padding: 44px 32px 32px;
   margin: 28px 0;
   border-top: 4px solid var(--secondary-color);
 }
@@ -1200,14 +1207,34 @@ body {
   }
 }
 
+/* The status bar wraps to several rows until it has desktop width; keeping it
+   sticky on phone/tablet would permanently cover a big slice of the viewport
+   during the (long) calculator flow. Let it scroll away below desktop — the
+   scenario card still shows progress-to-goal, so context isn't lost. Sticky is
+   retained on desktop, where it fits in one compact row. */
+@media (max-width: 768px) {
+  .calc-topbar {
+    position: static;
+  }
+}
+
 @media (max-width: 560px) {
+  /* Tighten the (now non-sticky) status bar on small phones. */
   .calc-topbar-inner {
-    gap: 16px;
+    gap: 10px 18px;
+    padding: 12px 16px;
   }
 
-  .sim-card,
+  .topbar-value {
+    font-size: 1.2rem;
+  }
+
   .pledge-card {
     padding: 22px 18px;
+  }
+
+  .sim-card {
+    padding: 44px 18px 22px;
   }
 
   .sim-card h2 {
