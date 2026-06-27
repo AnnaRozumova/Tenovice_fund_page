@@ -124,6 +124,7 @@ make test              # all tests (services/pledges_api)
 make test-unit         # unit tests
 make test-integration  # integration tests (moto, mocked AWS)
 make test-coverage     # tests + coverage report
+make check             # quality gate: ruff lint + pytest (Unix/CI; Windows: pwsh ./check.ps1)
 
 make infra-install     # install CDK deps
 make infra-synth       # cdk synth
@@ -145,7 +146,19 @@ python -m pytest tests/ -v
 - `tests/integration/` — handlers against moto-mocked DynamoDB.
 - repo-root `tests/e2e/` — hits a **deployed** API (`API_URL` env var); not run by `make test`.
 
-> There is **no single `make check` / lint gate for `services/pledges_api` yet** — adding one is planned.
+### Quality gate
+
+One command runs ruff + pytest (moto) on **Python 3.11** (the Lambda runtime):
+
+```bash
+pwsh ./check.ps1     # Windows dev — bootstraps a 3.11 .venv, installs requirements-dev.txt, runs the gate
+make check           # Unix / CI parity — assumes ruff + deps already installed
+```
+
+`requirements-dev.txt` = test deps + ruff; `.venv/` is gitignored. The legacy tests are currently
+**skipped with a reason** (they assume an older validation/model contract — tuple-returning validation,
+`name` length, `pledgers_count`, no `contributors_count`) and get rewritten in the privacy/data-model
+phase. The locked pledge math is covered now in `tests/unit/test_pledge_math.py`.
 
 ## Configuration
 

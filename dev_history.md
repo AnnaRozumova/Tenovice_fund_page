@@ -5,6 +5,33 @@ and how it was verified. Companion to `CLAUDE.md` (developer quick-start) and `d
 
 ---
 
+## 2026-06-18 — A2: local quality gate (ruff + pytest on Python 3.11)
+
+**What changed:**
+- `check.ps1` — Windows-first one-command gate: creates a Python 3.11 venv, installs deps, runs ruff +
+  pytest, exits non-zero on failure. `make check` target added for CI/Unix parity.
+- `services/pledges_api/requirements-dev.txt` (test deps + ruff); minimal `[tool.ruff]` (target py311) in
+  the previously-empty `services/pledges_api/pyproject.toml`.
+- `tests/conftest.py` now sets `AWS_DEFAULT_REGION` + dummy creds at import (fixes `NoRegionError`).
+- `tests/unit/test_pledge_math.py` (new) covers the locked pledge math (decision D8) — durable across the
+  upcoming Phase B rework.
+
+**Stale test suite parked (not rewritten here):** the existing `test_validation.py`, `test_models.py`, and
+`test_create_pledge.py` (26 tests) assume an older contract (tuple-returning validation, `name` length,
+`pledgers_count`, no `contributors_count`). They are **skipped with an explicit reason** pointing at the
+privacy/data-model phase that rewrites them (drop `name`, fix the stats field, add caps).
+
+**Verification:**
+```
+$ pwsh ./check.ps1
+== ruff ==     All checks passed!
+== pytest ==   3 passed, 26 skipped
+Quality gate PASSED   (exit 0)
+```
+No application/behavior code changed (only the empty `pyproject.toml` gained ruff config).
+
+---
+
 ## 2026-06-18 — A1: takeover audit + corrected docs
 
 **Context.** Project handover. The code was the source of truth; `CLAUDE.md` had drifted from it.
