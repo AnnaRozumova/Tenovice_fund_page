@@ -5,6 +5,58 @@ and how it was verified. Companion to `CLAUDE.md` (developer quick-start) and `d
 
 ---
 
+## 2026-06-19 — D2a: backend `POST /calculate` (server-side simulator math)
+
+**Why:** the calculator on the pledge page is a stateless *what-if simulator* (decision D15) — "if N friends
+each give X (one-time or monthly until a date), where does the campaign total land?". The math must come from
+**one place**: rather than a JS copy in the browser that can drift from the Python save path, the calculator
+will call this endpoint and only **display** the result (D8). This step builds the endpoint; the frontend
+wiring is D2.
+
+**What changed:**
+- **New shared math module** `domain/pledge_math.py` — `calculate_pledge_values()` and
+  `calculate_remaining_months()` moved here out of `create_pledge.py`, so the save path **and** the simulator
+  compute impact through the same code (single source of truth, D8). `calculate_remaining_months` now floors
+  at 0 (matches the documented spec) so a past end date yields no impact — the save path never reaches the
+  floor because it rejects past dates in validation.
+- **New read-only handler** `handlers/calculate.py` (`POST /calculate`) — input
+  `{people, amount, is_monthly, end_month?, end_year?}`; output `total_impact = people * amount *
+  (remaining_months if monthly else 1)`, plus `monthly_effect`, `remaining_months`, and the projection
+  (`current_total` from `STATS`, `goal` from `CONFIG`, `projected_total`, and `baseline_/projected_/
+  scenario_progress_pct` to one decimal). **Writes nothing** (read-only DynamoDB grant). The goal default
+  reuses `get_config.DEFAULT_FUNDRAISING_GOAL`, so the simulator stays consistent with the rest of the site
+  when the `CONFIG` row is absent.
+- **Validation** (`domain/validation.py`): new `validate_calculate_input` — `people` is a positive int with
+  **no upper cap** (D15) and `amount` is **uncapped** (the `MAX_AMOUNT` cap guards stored `STATS`; the
+  calculator stores nothing, and a large-group what-if must stay expressible). A past monthly end date is
+  **not** rejected here (the math floors months at 0). Extracted a shared `_validate_end_date(reject_past=…)`
+  helper and refactored `validate_pledge_input` onto it (pledge save uses `reject_past=True`); re-added
+  `_require_positive_int`.
+- **Infra:** `CalculateFn` (Python 3.11, **read-only** grant) + `POST /calculate` route. CORS already allowed
+  `POST` + `*`. Brings the API to **7 endpoints / 7 Lambdas**.
+- **Tests:** `tests/integration/test_calculate.py` (one-time, monthly, zero-months/past date, no-DB-write,
+  defaults when rows absent, integer serialization, validation errors); `tests/unit/test_pledge_math.py`
+  re-pointed at `domain.pledge_math` + a zero-months floor case.
+
+**What did NOT change:** no frontend (the calculator wiring is D2); the pledge save behavior is unchanged (the
+floor is unreachable on that path); no deploy.
+
+**Verification:**
+```
+$ pwsh ./check.ps1
+== ruff ==     All checks passed!
+== pytest ==   77 passed   (was 65 → +11 calculate + 1 zero-months math)
+Quality gate PASSED
+```
+CDK Python compiles (`py_compile`). Real handler output (moto, 100 people × €50/mo until 12/2030):
+`{remaining_months: 55, total_impact: 275000, monthly_effect: 5000, current_total: 228150, goal: 2700000,
+projected_total: 503150, baseline_progress_pct: 8.4, projected_progress_pct: 18.6, scenario_progress_pct: 10.2}`.
+`/code-review` (high): one low-severity note — `calculate_remaining_months` is computed twice for monthly
+input; left as-is rather than duplicate the formula in the handler or change the shared signature (negligible
+cost). **Not deployed** — `/calculate` goes live in Phase F.
+
+---
+
 ## 2026-06-19 — B4: remove `contributors_count` from the pledge (1 pledge = 1 supporter)
 
 **Why:** the project owner (Anna) and reviewer (Ondra) clarified that the "how many people" idea belongs to

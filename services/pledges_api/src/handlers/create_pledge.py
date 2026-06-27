@@ -9,6 +9,7 @@ import boto3
 from botocore.exceptions import ClientError
 
 from domain.models import Pledge
+from domain.pledge_math import calculate_pledge_values
 from domain.validation import validate_pledge_input
 from utils.response import response
 
@@ -58,32 +59,6 @@ def _find_pledge_by_email(table, email: str):
     return None
 
 
-def _calculate_remaining_months(end_month: int, end_year: int) -> int:
-    now = datetime.now(timezone.utc)
-    current_year = now.year
-    current_month = now.month
-    return (end_year - current_year) * 12 + (end_month - current_month) + 1
-
-
-def _calculate_pledge_values(
-    amount: Decimal,
-    is_monthly: bool,
-    end_month: int | None,
-    end_year: int | None,
-) -> tuple[Decimal, Decimal]:
-    if not is_monthly:
-        return amount, Decimal("0")
-
-    if end_month is None or end_year is None:
-        raise ValueError("Monthly pledge requires end_month and end_year")
-
-    remaining_months = _calculate_remaining_months(end_month, end_year)
-    campaign_total = amount * Decimal(remaining_months)
-    monthly_value = amount
-
-    return campaign_total, monthly_value
-
-
 def _create_new_pledge(table, data: dict):
     pledge_id = str(uuid.uuid4())
     timestamp = datetime.now(timezone.utc).isoformat()
@@ -93,7 +68,7 @@ def _create_new_pledge(table, data: dict):
     end_month: int | None = data["end_month"]
     end_year: int | None = data["end_year"]
 
-    campaign_total, monthly_value = _calculate_pledge_values(
+    campaign_total, monthly_value = calculate_pledge_values(
         amount=amount,
         is_monthly=is_monthly,
         end_month=end_month,
@@ -145,7 +120,7 @@ def _update_existing_pledge(table, existing_pledge: Pledge, data: dict):
         existing_pledge.amount if existing_pledge.is_monthly else Decimal("0")
     )
 
-    new_campaign_total, new_monthly_value = _calculate_pledge_values(
+    new_campaign_total, new_monthly_value = calculate_pledge_values(
         amount=new_amount,
         is_monthly=new_is_monthly,
         end_month=new_end_month,

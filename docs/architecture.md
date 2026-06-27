@@ -55,8 +55,8 @@ and works on phone + desktop.
 - `stack.py` — `FundraisingCalculatorStack`; composes the constructs, outputs `HttpApiUrl`.
 - `constructs/config.py` — `AppConfig` from `cdk.json` context.
 - `constructs/dynamodb.py` — Pledges table (PK `pledgeID`) + `EmailIndex` GSI on `email`.
-- `constructs/lambdas.py` — 6 Lambda functions (Python 3.11) from `../services/pledges_api/src`.
-- `constructs/apigw.py` — HTTP API, CORS, the 6 routes.
+- `constructs/lambdas.py` — 7 Lambda functions (Python 3.11) from `../services/pledges_api/src`.
+- `constructs/apigw.py` — HTTP API, CORS, the 7 routes.
 - `constructs/s3_website.py` — public static-website bucket; deploys `../web`.
 
 ## API surface — endpoint → handler map
@@ -69,6 +69,7 @@ and works on phone + desktop.
 | GET | `/pledges/by-email` | `get_pledge_by_email.handler` | query `EmailIndex` (**returns full record today — PII leak, see "Planned direction"**) |
 | GET | `/config` | `get_config.handler` | read `CONFIG` row (editable balance / goal / breakdown); documented defaults if absent |
 | POST | `/config` | `update_config.handler` | **admin-only** write of `CONFIG`; shared-secret bearer token (constant-time compare, fails closed) |
+| POST | `/calculate` | `calculate.handler` | **read-only** what-if simulator (D2a): `{people, amount, is_monthly, end_month?, end_year?}` → impact + projection vs goal; reads `STATS`/`CONFIG`, writes nothing, no auth |
 
 **Email-based upsert:** email is the identity key. First POST creates; a later POST with the same email
 updates, applying the delta to `STATS`. No tokens/auth — knowing the email is the ownership proof.
@@ -111,18 +112,24 @@ The row is written by the admin-only `POST /config` (`update_config`, C2; see "A
 > (`STATS` → `GET /stats` → `web/main.js`). The old `pledgers_count` reads were removed in B2; since B4 it
 > is a **pledge count** (1 per supporter), not a sum of per-pledge group sizes.
 
-## Pledge math (defined once per side, kept in lockstep)
+## Pledge math (single source of truth — `domain/pledge_math.py`)
 
-The calculator preview (`web/pledge.js`) and the saved totals (`create_pledge.py`) **must use the same
-formula** — change one, change both. (Phase D moves this to a single backend `POST /calculate` source of
-truth that the calculator displays; until then the JS preview mirrors `create_pledge.py`.)
+The formula lives **once**, in `services/pledges_api/src/domain/pledge_math.py`, and is imported by both the
+save path (`create_pledge.py`) and the read-only simulator (`calculate.py` / `POST /calculate`), so they can
+never drift (D8/D15; consolidated in D2a).
 
 - **One-time:** campaign impact = `amount`; monthly effect = 0.
 - **Monthly** (runs from now until `end_month/end_year` inclusive):
   `remaining_months = (end_year - cur_year)*12 + (end_month - cur_month) + 1`, floored at 0;
   campaign impact = `amount * remaining_months`; monthly effect = `amount`.
+- **Simulator** (`/calculate`) multiplies by the what-if group size:
+  `total_impact = people * amount * (remaining_months if monthly else 1)`, and returns the projection toward
+  the goal (`STATS` total + `CONFIG` goal → `projected_total`, progress %).
 
 `campaign_total` is stored per pledge so the value stays stable as months pass. Money is EUR, integer display.
+
+> `web/pledge.js` still carries its own JS copy of this math for the live preview. That copy is **removed in
+> D2**, when the calculator switches to calling `POST /calculate` and only *displays* the result (no JS math).
 
 ## Privacy model
 
