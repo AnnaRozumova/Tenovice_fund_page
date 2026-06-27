@@ -16,6 +16,7 @@ class LambdaHandlers:
     create_pledge: Optional[_lambda.Function] = None
     list_pledges: Optional[_lambda.Function] = None
     get_pledge_by_email: Optional[_lambda.Function] = None
+    get_config: Optional[_lambda.Function] = None
 
 
 class LambdasConstruct(Construct):
@@ -89,9 +90,25 @@ class LambdasConstruct(Construct):
 
         pledges_table.grant_read_data(get_pledge_by_email)
 
+        get_config = _lambda.Function(
+            self,
+            "GetConfigFn",
+            function_name=f"{config.project_name}-{config.stage}-get-config",
+            runtime=_lambda.Runtime.PYTHON_3_11,
+            handler="handlers.get_config.handler",
+            code=_lambda.Code.from_asset("../services/pledges_api/src"),
+            timeout=Duration.seconds(10),
+            environment={
+                "PLEDGES_TABLE_NAME": pledges_table.table_name,
+            },
+        )
+
+        pledges_table.grant_read_data(get_config)
+
         self.handlers = LambdaHandlers(
             get_stats=get_stats,
             create_pledge=create_pledge,
             list_pledges=list_pledges,
             get_pledge_by_email=get_pledge_by_email,
+            get_config=get_config,
         )

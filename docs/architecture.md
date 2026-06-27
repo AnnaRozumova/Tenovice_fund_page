@@ -55,8 +55,8 @@ and works on phone + desktop.
 - `stack.py` — `FundraisingCalculatorStack`; composes the constructs, outputs `HttpApiUrl`.
 - `constructs/config.py` — `AppConfig` from `cdk.json` context.
 - `constructs/dynamodb.py` — Pledges table (PK `pledgeID`) + `EmailIndex` GSI on `email`.
-- `constructs/lambdas.py` — 4 Lambda functions (Python 3.11) from `../services/pledges_api/src`.
-- `constructs/apigw.py` — HTTP API, CORS, the 4 routes.
+- `constructs/lambdas.py` — 5 Lambda functions (Python 3.11) from `../services/pledges_api/src`.
+- `constructs/apigw.py` — HTTP API, CORS, the 5 routes.
 - `constructs/s3_website.py` — public static-website bucket; deploys `../web`.
 
 ## API surface — endpoint → handler map
@@ -67,6 +67,7 @@ and works on phone + desktop.
 | GET | `/pledges` | `list_pledges.handler` | `scan`, anonymous fields only |
 | POST | `/pledges` | `create_pledge.handler` | upsert by email + adjust `STATS` |
 | GET | `/pledges/by-email` | `get_pledge_by_email.handler` | query `EmailIndex` (**returns full record today — PII leak, see "Planned direction"**) |
+| GET | `/config` | `get_config.handler` | read `CONFIG` row (editable balance / goal / breakdown); documented defaults if absent |
 
 **Email-based upsert:** email is the identity key. First POST creates; a later POST with the same email
 updates, applying the delta to `STATS`. No tokens/auth — knowing the email is the ownership proof.
@@ -95,6 +96,12 @@ Single DynamoDB table. PK `pledgeID` (String); GSI `EmailIndex` on `email` (proj
 
 **`STATS` row** (`pledgeID="STATS"`): `pledged_total` (Σ `campaign_total`), `contributors_count`
 (Σ pledges' `contributors_count`), `monthly_total` (Σ monthly `amount`), `updated_at`.
+
+**`CONFIG` row** (`pledgeID="CONFIG"`, added C1): the editable campaign numbers — `current_balance`,
+`fundraising_goal`, and `breakdown` (a list of `{key, amount}`, where `key` is a stable identifier such as
+`new_gompa` — localized labels live in the frontend i18n dict, not the DB). Read by `GET /config`; the
+handler falls back to documented defaults when the row is absent, so the site works before it is seeded.
+The writer (`POST /config` + admin page) is Phase C2.
 
 > `contributors_count` is the single canonical field for the supporters total, used end-to-end
 > (`STATS` → `GET /stats` → `web/main.js` + `web/pledge.js`). The old `pledgers_count` reads were removed
@@ -143,8 +150,9 @@ Doing this early is cheap (only test data exists); it gets painful once real fri
   `api_name` (`fundraising-api`), `pledges_table_name` (`Pledges`). Table =
   `{project_name}-{stage}-{pledges_table_name}`.
 - **dev** → DynamoDB + S3 `RemovalPolicy.DESTROY`; other stages → `RETAIN`.
-- **Frontend** (`web/config.js`): `API_URL`, `CURRENT_BALANCE`, `FUNDRAISING_GOAL` (EUR, hardcoded today).
-  Moving the editable numbers into a DynamoDB `CONFIG` row + `/config` endpoint is planned.
+- **Frontend** (`web/config.js`): `API_URL`, plus `CURRENT_BALANCE` / `FUNDRAISING_GOAL` / `BREAKDOWN` as
+  **fallback defaults**. `loadConfig()` fetches `GET /config` on page load and overrides them; the hardcoded
+  values are used only if that request fails. Writing the `CONFIG` row (admin) is Phase C2.
 
 ## Testing
 
