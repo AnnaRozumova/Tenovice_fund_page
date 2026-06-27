@@ -17,6 +17,36 @@ const CONFIG = {
   ],
 };
 
+// Dev-only API override: point the site at a different API without editing this
+// file — e.g. a local dev API while the real one isn't deployed yet. Pass
+// `?api=http://localhost:8127` (remembered in localStorage), or `?api=` to clear.
+// Only honored when the page itself is served from localhost, so a crafted
+// `?api=…` link can never repoint the deployed site at another host. No effect in
+// production: with no query param and no stored value, API_URL above is used unchanged.
+(function () {
+  const host = window.location.hostname;
+  if (host !== 'localhost' && host !== '127.0.0.1') {
+    return;
+  }
+  try {
+    const params = new URLSearchParams(window.location.search);
+    if (params.has('api')) {
+      const value = params.get('api');
+      if (value) {
+        localStorage.setItem('tenovice.apiOverride', value);
+      } else {
+        localStorage.removeItem('tenovice.apiOverride');
+      }
+    }
+    const override = localStorage.getItem('tenovice.apiOverride');
+    if (override) {
+      CONFIG.API_URL = override;
+    }
+  } catch (error) {
+    /* query/localStorage unavailable — keep the default API_URL */
+  }
+})();
+
 // Fetch the editable campaign numbers from the API and override the fallbacks.
 // On any failure we keep the hardcoded defaults so the site still renders.
 async function loadConfig() {

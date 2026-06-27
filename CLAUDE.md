@@ -112,8 +112,9 @@ the two can never drift (decision D8/D15). Moved out of `create_pledge.py` in D2
 - **Simulator** (`/calculate`) multiplies by the what-if group size: `total_impact = people * amount *
   (remaining_months if monthly else 1)`.
 
-> `web/pledge.js` still carries its own JS copy of this math for the live preview. That copy is **removed in
-> D2**, when the calculator switches to calling `POST /calculate` and only *displays* the result (no JS math).
+> The frontend holds **no copy** of this math (removed in D2). `web/pledge.js` calls `POST /calculate` on the
+> "Spočítat" button and only *displays* the returned result; it does not recompute anything (single source of
+> truth, D8/D15). The only date logic left in JS is an input check that a monthly end date isn't in the past.
 
 ## JSON encoding note
 

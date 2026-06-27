@@ -128,8 +128,8 @@ never drift (D8/D15; consolidated in D2a).
 
 `campaign_total` is stored per pledge so the value stays stable as months pass. Money is EUR, integer display.
 
-> `web/pledge.js` still carries its own JS copy of this math for the live preview. That copy is **removed in
-> D2**, when the calculator switches to calling `POST /calculate` and only *displays* the result (no JS math).
+> The frontend holds **no copy** of this math (removed in D2): `web/pledge.js` calls `POST /calculate` on the
+> "Spočítat" button and only *displays* the returned result — single source of truth (D8/D15).
 
 ## Privacy model
 

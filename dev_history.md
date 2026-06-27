@@ -5,6 +5,45 @@ and how it was verified. Companion to `CLAUDE.md` (developer quick-start) and `d
 
 ---
 
+## 2026-06-19 — D2: calculator + preview (display-only) and a separate pledge-save flow
+
+**Why:** wire the locked three-zone page design to the backend. The "what-if" calculator must get its
+numbers from `POST /calculate` (D2a) and only *display* them — the JS copy of the pledge math is removed so
+there is a single source of truth (decision D8/D15). The calculator (a stateless simulator) is separated
+from saving a pledge (one person's own commitment). Frontend-only — no Python/CDK change.
+
+**What changed (all under `web/`):**
+- **`pledge.html`** — rebuilt the post-lookup page into three zones: a sticky campaign-status bar (real money
+  vs goal, from `/config`), the **simulator** (how-many-people / amount-per-person / one-time–monthly + end
+  date → a **"Spočítat" button**), a **preview** that shows the *calculator's* result, a supporters strip
+  (`/stats`), and below a divider the **pledge form** (one person — no "how many people", no email field;
+  email comes from the lookup step). Lookup step centered; logo stretched to the banner width on this page
+  (`header-banner`). Success page (`success.html`) buttons/spacing normalized.
+- **`pledge.js`** — rewritten. The calculator calls `POST /calculate` **on the button press, not on input**
+  (Ondra: a request per keystroke is wasteful) and renders the returned `total_impact / monthly_effect /
+  remaining_months` + two-segment projection (baseline pledged % + scenario gain %). **No pledge math in JS.**
+  The pledge form saves via `POST /pledges` (`{email, amount, is_monthly, message?, end_month?, end_year?}` —
+  **no `contributors_count`**). **Client-side validation** mirrors the backend: email format (`EMAIL_RE`) at
+  the lookup step, `amount` ≤ 100,000 and `message` ≤ 500 in the form — bad input is blocked before any request.
+- **`i18n.js`** — added the `sim.*` + pledge-zone keys (CZ+EN, parity held at 112=112); removed the now-dead
+  live-preview/status/mode keys.
+- **`config.js`** — added a **localhost-only** `?api=<url>` override (remembered in localStorage) so the site
+  can point at a local dev API before deploy. Gated to `localhost`/`127.0.0.1` so a crafted link can't
+  repoint the deployed site.
+- **`style.css`** — calc-page styles (sticky bar, simulator grid, two-segment progress, supporters strip,
+  centered pledge card), centered/narrowed lookup step, success-page polish, logo overflow fix.
+
+**What did NOT change:** no backend/CDK — `POST /calculate` already shipped in D2a. The pledge math lives only
+in `domain/pledge_math.py` now (the JS copy is gone).
+
+**Verification:** gate green (`ruff` clean, **77 passed**), i18n parity 112=112. Browser-driven against a local
+dev API running the real handlers (moto): real `/calculate` (108 × €50 monthly → €297,000, projection 19.4 %),
+`/stats`-driven supporters, `/config`-driven status bar, pledge create + edit, client email/amount rejection,
+CZ↔EN re-render, and **no horizontal overflow at 375 px**. Full end-to-end against the deployed API waits on
+Phase F (the dev API is unreachable from production).
+
+---
+
 ## 2026-06-19 — T1: POSIX dev scripts (`check.sh` / `serve.sh`)
 
 **Why:** the committed dev helpers were Windows-only (`check.ps1` / `serve.ps1`), but the deploy pipeline and
