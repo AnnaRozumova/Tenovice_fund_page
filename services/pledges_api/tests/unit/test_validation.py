@@ -13,8 +13,78 @@ from domain.validation import (
     MAX_AMOUNT,
     MAX_CONTRIBUTORS_COUNT,
     MAX_MESSAGE_LENGTH,
+    validate_config_input,
     validate_pledge_input,
 )
+
+
+def _valid_config():
+    return {
+        "current_balance": 320000,
+        "fundraising_goal": 2700000,
+        "breakdown": [
+            {"key": "new_gompa", "amount": 1200000},
+            {"key": "sangha_house", "amount": 1200000},
+            {"key": "basecamp_north", "amount": 320000},
+        ],
+    }
+
+
+class TestValidateConfigInput:
+    def test_valid_input_is_returned_normalized(self):
+        result = validate_config_input(_valid_config())
+        assert result["current_balance"] == 320000
+        assert result["fundraising_goal"] == 2700000
+        assert [b["key"] for b in result["breakdown"]] == [
+            "new_gompa",
+            "sangha_house",
+            "basecamp_north",
+        ]
+
+    def test_zero_balance_allowed_but_zero_goal_rejected(self):
+        cfg = _valid_config()
+        cfg["current_balance"] = 0
+        assert validate_config_input(cfg)["current_balance"] == 0
+
+        cfg["fundraising_goal"] = 0
+        with pytest.raises(ValueError, match="greater than 0"):
+            validate_config_input(cfg)
+
+    def test_negative_amount_rejected(self):
+        cfg = _valid_config()
+        cfg["breakdown"][0]["amount"] = -1
+        with pytest.raises(ValueError, match="must not be negative"):
+            validate_config_input(cfg)
+
+    def test_unknown_breakdown_key_rejected(self):
+        cfg = _valid_config()
+        cfg["breakdown"][0]["key"] = "protective_forest"
+        with pytest.raises(ValueError, match="must be one of"):
+            validate_config_input(cfg)
+
+    def test_missing_breakdown_key_rejected(self):
+        cfg = _valid_config()
+        cfg["breakdown"] = cfg["breakdown"][:2]
+        with pytest.raises(ValueError, match="missing required key"):
+            validate_config_input(cfg)
+
+    def test_duplicate_breakdown_key_rejected(self):
+        cfg = _valid_config()
+        cfg["breakdown"][1]["key"] = "new_gompa"
+        with pytest.raises(ValueError, match="duplicate"):
+            validate_config_input(cfg)
+
+    def test_breakdown_must_be_list(self):
+        cfg = _valid_config()
+        cfg["breakdown"] = {}
+        with pytest.raises(ValueError, match="non-empty list"):
+            validate_config_input(cfg)
+
+    def test_missing_field_rejected(self):
+        cfg = _valid_config()
+        del cfg["fundraising_goal"]
+        with pytest.raises(ValueError, match="'fundraising_goal' is required"):
+            validate_config_input(cfg)
 
 
 class TestValidatePledgeInput:

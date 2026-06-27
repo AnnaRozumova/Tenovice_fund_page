@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tenovice Admin — Edit Config</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    /* Minimal internal-admin styling; this page is a tool, not the public site. */
+    .admin-wrap { max-width: 560px; margin: 2rem auto; padding: 0 1rem; }
+    .admin-wrap h1 { margin-bottom: 0.25rem; }
+    .admin-note { color: #666; font-size: 0.9rem; margin-bottom: 1.5rem; }
+    .admin-field { display: flex; flex-direction: column; margin-bottom: 1rem; }
+    .admin-field label { font-weight: 600; margin-bottom: 0.25rem; }
+    .admin-field input { padding: 0.5rem; font-size: 1rem; }
+    fieldset { border: 1px solid #ddd; border-radius: 6px; margin-bottom: 1rem; padding: 0.75rem 1rem; }
+    legend { font-weight: 600; padding: 0 0.4rem; }
+    .admin-actions { display: flex; gap: 0.75rem; align-items: center; }
+    button { padding: 0.6rem 1.2rem; font-size: 1rem; cursor: pointer; }
+    .admin-status { margin-top: 1rem; font-weight: 600; }
+    .admin-status.ok { color: #1a7f37; }
+    .admin-status.err { color: #c1121f; }
+    .hidden { display: none; }
+  </style>
+</head>
+<body>
+  <main class="admin-wrap">
+    <h1>Edit campaign numbers</h1>
+    <p class="admin-note">
+      Internal tool. Paste the admin secret, adjust the numbers (EUR), and save.
+      Must be used over HTTPS. The current values are loaded below.
+    </p>
+
+    <form id="adminForm">
+      <div class="admin-field">
+        <label for="secret">Admin secret</label>
+        <input type="password" id="secret" autocomplete="off" placeholder="paste the shared secret">
+      </div>
+
+      <div class="admin-field">
+        <label for="currentBalance">Current balance (EUR)</label>
+        <input type="number" id="currentBalance" min="0" step="1">
+      </div>
+
+      <div class="admin-field">
+        <label for="fundraisingGoal">Fundraising goal (EUR)</label>
+        <input type="number" id="fundraisingGoal" min="1" step="1">
+      </div>
+
+      <fieldset>
+        <legend>Breakdown by direction (EUR)</legend>
+        <div class="admin-field">
+          <label for="amount_new_gompa">New Gompa</label>
+          <input type="number" id="amount_new_gompa" data-key="new_gompa" min="0" step="1">
+        </div>
+        <div class="admin-field">
+          <label for="amount_sangha_house">Sangha House</label>
+          <input type="number" id="amount_sangha_house" data-key="sangha_house" min="0" step="1">
+        </div>
+        <div class="admin-field">
+          <label for="amount_basecamp_north">Basecamp North</label>
+          <input type="number" id="amount_basecamp_north" data-key="basecamp_north" min="0" step="1">
+        </div>
+      </fieldset>
+
+      <div class="admin-actions">
+        <button type="submit" id="saveButton">Save</button>
+      </div>
+
+      <p id="status" class="admin-status hidden"></p>
+    </form>
+  </main>
+
+  <script src="config.js"></script>
+  <script src="admin.js"></script>
+</body>
+</html>

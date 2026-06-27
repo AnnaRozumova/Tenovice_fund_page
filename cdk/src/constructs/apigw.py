@@ -81,3 +81,13 @@ class ApiConstruct(Construct):
                     handler=handlers.get_config,
                 ),
             )
+
+        if handlers.update_config:
+            self.http_api.add_routes(
+                path="/config",
+                methods=[apigwv2.HttpMethod.POST],
+                integration=integrations.HttpLambdaIntegration(
+                    "UpdateConfigIntegration",
+                    handler=handlers.update_config,
+                ),
+            )

@@ -55,8 +55,8 @@ and works on phone + desktop.
 - `stack.py` — `FundraisingCalculatorStack`; composes the constructs, outputs `HttpApiUrl`.
 - `constructs/config.py` — `AppConfig` from `cdk.json` context.
 - `constructs/dynamodb.py` — Pledges table (PK `pledgeID`) + `EmailIndex` GSI on `email`.
-- `constructs/lambdas.py` — 5 Lambda functions (Python 3.11) from `../services/pledges_api/src`.
-- `constructs/apigw.py` — HTTP API, CORS, the 5 routes.
+- `constructs/lambdas.py` — 6 Lambda functions (Python 3.11) from `../services/pledges_api/src`.
+- `constructs/apigw.py` — HTTP API, CORS, the 6 routes.
 - `constructs/s3_website.py` — public static-website bucket; deploys `../web`.
 
 ## API surface — endpoint → handler map
@@ -68,6 +68,7 @@ and works on phone + desktop.
 | POST | `/pledges` | `create_pledge.handler` | upsert by email + adjust `STATS` |
 | GET | `/pledges/by-email` | `get_pledge_by_email.handler` | query `EmailIndex` (**returns full record today — PII leak, see "Planned direction"**) |
 | GET | `/config` | `get_config.handler` | read `CONFIG` row (editable balance / goal / breakdown); documented defaults if absent |
+| POST | `/config` | `update_config.handler` | **admin-only** write of `CONFIG`; shared-secret bearer token (constant-time compare, fails closed) |
 
 **Email-based upsert:** email is the identity key. First POST creates; a later POST with the same email
 updates, applying the delta to `STATS`. No tokens/auth — knowing the email is the ownership proof.
@@ -101,7 +102,7 @@ Single DynamoDB table. PK `pledgeID` (String); GSI `EmailIndex` on `email` (proj
 `fundraising_goal`, and `breakdown` (a list of `{key, amount}`, where `key` is a stable identifier such as
 `new_gompa` — localized labels live in the frontend i18n dict, not the DB). Read by `GET /config`; the
 handler falls back to documented defaults when the row is absent, so the site works before it is seeded.
-The writer (`POST /config` + admin page) is Phase C2.
+The row is written by the admin-only `POST /config` (`update_config`, C2; see "Admin secret" below).
 
 > `contributors_count` is the single canonical field for the supporters total, used end-to-end
 > (`STATS` → `GET /stats` → `web/main.js` + `web/pledge.js`). The old `pledgers_count` reads were removed
@@ -152,7 +153,15 @@ Doing this early is cheap (only test data exists); it gets painful once real fri
 - **dev** → DynamoDB + S3 `RemovalPolicy.DESTROY`; other stages → `RETAIN`.
 - **Frontend** (`web/config.js`): `API_URL`, plus `CURRENT_BALANCE` / `FUNDRAISING_GOAL` / `BREAKDOWN` as
   **fallback defaults**. `loadConfig()` fetches `GET /config` on page load and overrides them; the hardcoded
-  values are used only if that request fails. Writing the `CONFIG` row (admin) is Phase C2.
+  values are used only if that request fails. `web/admin.html` + `admin.js` (C2) write the `CONFIG` row via
+  `POST /config` (paste the secret, prefill from `GET /config`, save).
+
+**Admin secret** (C2, decision D6): `update_config` authorizes the caller by comparing a bearer token
+against the `ADMIN_SECRET` Lambda env var with a **constant-time** compare (`hmac.compare_digest`). It
+**fails closed** — if no secret is configured, every write is rejected. CDK injects `ADMIN_SECRET` from the
+deploy environment, which the CI/CD pipeline (D13) sources from SSM / Secrets Manager; it is **never
+committed and never logged**. A single shared secret over HTTPS is intentional — Cognito would be overkill
+for one trusted editor.
 
 ## Testing
 

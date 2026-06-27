@@ -37,11 +37,11 @@ AWS CDK (Python) describes & deploys all of the above.
 - `constructs/config.py` — `AppConfig`, reads context from `cdk.json` (`stage`, `project_name`,
   `api_name`, `pledges_table_name`).
 - `constructs/dynamodb.py` — Pledges table (PK `pledgeID`) + `EmailIndex` GSI on `email` (projection ALL).
-- `constructs/lambdas.py` — the 5 Lambda functions (Python 3.11), code from `../services/pledges_api/src`.
-- `constructs/apigw.py` — HTTP API + CORS (`GET`/`POST`/`OPTIONS`, origins `*`) + the 5 routes.
+- `constructs/lambdas.py` — the 6 Lambda functions (Python 3.11), code from `../services/pledges_api/src`.
+- `constructs/apigw.py` — HTTP API + CORS (`GET`/`POST`/`OPTIONS`, origins `*`) + the 6 routes.
 - `constructs/s3_website.py` — public S3 static-website bucket; deploys `../web` and outputs the URL.
 
-## API — 5 endpoints
+## API — 6 endpoints
 
 | Method | Path | Handler (`services/pledges_api/src/handlers/`) | Notes |
 |--------|------|-----------------------------------------------|-------|
@@ -49,7 +49,8 @@ AWS CDK (Python) describes & deploys all of the above.
 | GET | `/pledges` | `list_pledges.handler` | `scan`; returns anonymous fields only |
 | POST | `/pledges` | `create_pledge.handler` | upsert by email; adjusts `STATS` |
 | GET | `/pledges/by-email` | `get_pledge_by_email.handler` | query `EmailIndex` (case-insensitive); returns **only the caller's own pledge, projected to an allowlist** (no `pledgeID`/timestamps) |
-| GET | `/config` | `get_config.handler` | reads the `CONFIG` row (editable balance / goal / breakdown); documented defaults if the row is absent (added C1; writer = C2) |
+| GET | `/config` | `get_config.handler` | reads the `CONFIG` row (editable balance / goal / breakdown); documented defaults if the row is absent (C1) |
+| POST | `/config` | `update_config.handler` | **admin-only** write of the `CONFIG` row; shared-secret bearer token, constant-time compare, fails closed (C2) |
 
 **Live dev API:** `https://tbaulwfk46.execute-api.eu-central-1.amazonaws.com` (region `eu-central-1`).
 It is **deployed and holds test data** — `GET /stats` →
@@ -86,7 +87,8 @@ Primary key `pledgeID` (String). GSI `EmailIndex` on `email` (projection ALL) fo
 - `current_balance`, `fundraising_goal` — EUR
 - `breakdown` — list of `{key, amount}`; `key` is a stable identifier (`new_gompa`, `sangha_house`,
   `basecamp_north`) — localized labels live in the frontend i18n dict, not the DB
-- `get_config` falls back to documented defaults when the row is absent (the writer `POST /config` is C2).
+- `get_config` falls back to documented defaults when the row is absent. The row is written by the
+  admin-only `POST /config` (`update_config`, C2) — guarded by a shared-secret bearer token.
 
 > **`contributors_count`** is the single canonical field for the supporters total, used end-to-end
 > (DynamoDB `STATS` → `GET /stats` → `web/main.js` + `web/pledge.js`). The old frontend `pledgers_count`
@@ -187,9 +189,14 @@ fallback.
   `{project_name}-{stage}-{pledges_table_name}`. Override with `--context key=value`.
 - **dev stage** → DynamoDB + S3 use `RemovalPolicy.DESTROY` (and S3 `auto_delete_objects`); any other
   stage → `RETAIN`.
+- **Admin secret** (`update_config`): the `ADMIN_SECRET` Lambda env var. CDK reads it from the deploy
+  environment (`os.environ`), which the CI/CD pipeline (D13) sources from SSM / Secrets Manager — it is
+  **never committed**. If unset, `update_config` fails closed (every `POST /config` → 401). Validated with a
+  constant-time compare; never logged. Editing happens over **HTTPS only** via `web/admin.html`.
 - **Frontend** (`web/config.js`): `API_URL`, plus `CURRENT_BALANCE` / `FUNDRAISING_GOAL` / `BREAKDOWN` as
   **fallback defaults** (EUR). `loadConfig()` fetches `GET /config` on page load and overrides them (C1);
-  the hardcoded values are used only if that request fails. Editing the `CONFIG` row (admin) is C2.
+  the hardcoded values are used only if that request fails. `web/admin.html` + `admin.js` (C2) edit the
+  numbers: paste the secret, prefill from `GET /config`, save via `POST /config`.
 
 ## Adding a new Lambda handler
 1. Create the handler in `services/pledges_api/src/handlers/`.
