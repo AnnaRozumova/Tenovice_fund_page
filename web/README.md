@@ -110,24 +110,19 @@ web/
 
 ## Testing Locally
 
-You can test by simply opening `index.html` in a browser, but API calls may be blocked by CORS if testing from `file://` protocol.
+Serve the site over HTTP — don't open `index.html` from `file://`, API calls get blocked by CORS.
 
-To test properly:
-
-**Option 1: Python**
-```bash
-cd web
-python -m http.server 8000
-# Open http://localhost:8000
+**One command (Windows-first), from the repo root:**
+```powershell
+pwsh ./serve.ps1              # serves web/ at http://localhost:8000 (Python 3.11)
+pwsh ./serve.ps1 -Port 8080   # custom port
 ```
 
-**Option 2: PHP**
+The **API base is a single config value** — `CONFIG.API_URL` in `config.js`. It defaults to the live
+dev API, so the calculator shows real data locally; point it at another API if you need to.
+
+**Plain Python (any OS):**
 ```bash
 cd web
-php -S localhost:8000
-# Open http://localhost:8000
+python -m http.server 8000    # open http://localhost:8000
 ```
-
-**Option 3: VS Code Live Server Extension**
-- Install "Live Server" extension
-- Right-click `index.html` → Open with Live Server

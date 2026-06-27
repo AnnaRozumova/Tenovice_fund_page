@@ -5,6 +5,23 @@ and how it was verified. Companion to `CLAUDE.md` (developer quick-start) and `d
 
 ---
 
+## 2026-06-19 — A3: frontend dev harness (run the site locally)
+
+**What changed:**
+- `serve.ps1` (new) — one-command local static server (`py -3.11 -m http.server` over `web/`, default
+  port 8000, `-Port` to change). Windows-first; mirrors the `python -m http.server` fallback.
+- `web/README.md` — "Testing Locally" now leads with `pwsh ./serve.ps1` and documents `CONFIG.API_URL`
+  as the single API-base knob.
+
+**Verification:** served locally — `GET /`, `/pledge.html`, `/config.js` → HTTP 200; page title
+"Tenovice Fundraising". API base confirmed single-sourced (`CONFIG.API_URL`, used by `main.js`/`pledge.js`).
+No app/behavior change (only `serve.ps1` + `web/README.md`).
+
+This completes **Phase A** (A1 docs · A2 quality gate · A3 dev harness), pushed as the single branch
+`A-takeover-and-truth`.
+
+---
+
 ## 2026-06-18 — A2: local quality gate (ruff + pytest on Python 3.11)
 
 **What changed:**
