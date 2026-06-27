@@ -2,13 +2,19 @@
 
 Rewritten in Phase B (B1): ``validate_pledge_input`` raises ``ValueError`` on bad
 input and returns a validated dict; ``name`` is no longer accepted or required.
-Upper-bound caps are added in B3.
+B3 adds the upper-bound caps (``MAX_AMOUNT``, ``MAX_CONTRIBUTORS_COUNT``,
+``MAX_MESSAGE_LENGTH``).
 """
 from decimal import Decimal
 
 import pytest
 
-from domain.validation import validate_pledge_input
+from domain.validation import (
+    MAX_AMOUNT,
+    MAX_CONTRIBUTORS_COUNT,
+    MAX_MESSAGE_LENGTH,
+    validate_pledge_input,
+)
 
 
 class TestValidatePledgeInput:
@@ -169,3 +175,39 @@ class TestValidatePledgeInput:
         }
         with pytest.raises(ValueError, match="message"):
             validate_pledge_input(data)
+
+    # --- B3: upper-bound caps ---
+
+    def _base(self, **overrides):
+        data = {
+            "email": "john@example.com",
+            "contributors_count": 1,
+            "amount": 100,
+            "is_monthly": False,
+        }
+        data.update(overrides)
+        return data
+
+    def test_amount_at_cap_is_accepted(self):
+        result = validate_pledge_input(self._base(amount=int(MAX_AMOUNT)))
+        assert result["amount"] == MAX_AMOUNT
+
+    def test_amount_over_cap_rejected(self):
+        with pytest.raises(ValueError, match="exceed"):
+            validate_pledge_input(self._base(amount=int(MAX_AMOUNT) + 1))
+
+    def test_contributors_count_at_cap_is_accepted(self):
+        result = validate_pledge_input(self._base(contributors_count=MAX_CONTRIBUTORS_COUNT))
+        assert result["contributors_count"] == MAX_CONTRIBUTORS_COUNT
+
+    def test_contributors_count_over_cap_rejected(self):
+        with pytest.raises(ValueError, match="exceed"):
+            validate_pledge_input(self._base(contributors_count=MAX_CONTRIBUTORS_COUNT + 1))
+
+    def test_message_at_cap_is_accepted(self):
+        result = validate_pledge_input(self._base(message="x" * MAX_MESSAGE_LENGTH))
+        assert result["message"] == "x" * MAX_MESSAGE_LENGTH
+
+    def test_message_over_cap_rejected(self):
+        with pytest.raises(ValueError, match="message"):
+            validate_pledge_input(self._base(message="x" * (MAX_MESSAGE_LENGTH + 1)))

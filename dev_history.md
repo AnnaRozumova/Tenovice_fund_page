@@ -5,6 +5,39 @@ and how it was verified. Companion to `CLAUDE.md` (developer quick-start) and `d
 
 ---
 
+## 2026-06-19 — B3: validation hardening (input caps)
+
+**Why:** before this, `amount` and `contributors_count` had only a lower bound (≥ 1) and `message` had no
+length limit at all. A single fat-finger or abusive value (e.g. amount 5,000,000) would skew the public
+`STATS` totals. Caps keep the running totals sane.
+
+**What changed (`domain/validation.py`):**
+- New constants `MAX_AMOUNT = 100000`, `MAX_CONTRIBUTORS_COUNT = 5`, `MAX_MESSAGE_LENGTH = 500`.
+- `_require_positive_decimal` / `_require_positive_int` gained an optional `maximum`; `validate_pledge_input`
+  passes the caps and rejects over-cap input with a clear message (`'amount' must not exceed 100,000`, etc.).
+  `message` over 500 chars is rejected too. Min ≥ 1 unchanged.
+- Caps are **provisional** — the contributors cap especially, pending a product decision on whether the
+  "one pledge for several people" feature stays. They are plain constants now and move into the editable
+  `CONFIG` row in Phase C. Enforced **server-side only**; mirroring them in the form is deferred to D2.
+
+**What did NOT change:** no frontend, no infra. The form still has only `min="1"`, so an over-cap value
+reaches the API and fails with the generic "Could not save pledge" until D2 adds the client-side mirror.
+
+**Verification:**
+```
+$ pwsh ./check.ps1
+== ruff ==     All checks passed!
+== pytest ==   48 passed
+Quality gate PASSED
+```
+Six new cap tests in `test_validation.py` (each cap: at-limit accepted, over-limit rejected). Also confirmed
+by calling `validate_pledge_input` directly: 10 EUR / 1 contributor accepted; 200,000 / 6 / 600-char message
+each rejected with the expected message.
+
+**This completes Phase B** (B1 privacy · B2 stats+response util · B3 caps).
+
+---
+
 ## 2026-06-19 — B2: canonicalize `contributors_count`; unify the response util
 
 **Why:** the supporters headline always showed **0** — the backend stores/serves `contributors_count`
@@ -153,17 +186,11 @@ the `pledgers_count` mismatch.
 
 ---
 
-## Planned next (privacy & data-model hardening — Phase B remaining)
+## Planned next (after Phase B)
 
-The data model changes early, while only test data exists (cheap now, painful once real friends pledge).
-Test data in the live table will be reset when this phase deploys.
+**Phase B is complete** (B1 privacy · B2 stats + shared response util · B3 input caps). The data-model
+hardening was done early, while only test data exists. Test data in the live table will be reset when this
+deploys (Phase F).
 
-1. ~~**Drop `name`**~~ — done (B1).
-2. ~~**Harden `/pledges/by-email`**~~ — done (B1).
-3. ~~Keep `email` as-is (no hashing)~~ — confirmed/kept (B1).
-4. ~~**Canonicalize stats on `contributors_count`**~~ — done (B2).
-5. ~~**One shared `response()`/`DecimalEncoder` util**~~ — done (B2).
-6. Add **upper bounds** on `amount` and `contributors_count`. *(B3 — next)*
-
-Followed by: a one-command local quality gate (ruff + pytest/moto), editable numbers via a `CONFIG` row +
-admin endpoint, CZ/EN i18n, calculator UX, the post-pledge payment page, then AWS deploy + custom domain.
+Next: editable numbers via a `CONFIG` row + admin endpoint (Phase C; the B3 caps move there), CZ/EN i18n,
+calculator UX, the post-pledge payment page, then AWS deploy + custom domain.

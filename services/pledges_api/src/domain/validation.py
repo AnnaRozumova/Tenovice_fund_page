@@ -5,6 +5,14 @@ from decimal import Decimal, InvalidOperation
 
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
+# Provisional input caps. These guard STATS against fat-finger / abusive values.
+# The contributors cap is tentative — pending a product decision on whether the
+# "one pledge on behalf of several people" feature stays at all. Moving these into
+# the editable CONFIG row is planned (Phase C).
+MAX_AMOUNT = Decimal("100000")
+MAX_CONTRIBUTORS_COUNT = 5
+MAX_MESSAGE_LENGTH = 500
+
 
 def _require_non_empty_string(data: dict, field: str) -> str:
     value = data.get(field)
@@ -15,7 +23,7 @@ def _require_non_empty_string(data: dict, field: str) -> str:
     return value.strip()
 
 
-def _require_positive_decimal(data: dict, field: str) -> Decimal:
+def _require_positive_decimal(data: dict, field: str, maximum: Decimal | None = None) -> Decimal:
     value = data.get(field)
 
     if value is None:
@@ -29,10 +37,13 @@ def _require_positive_decimal(data: dict, field: str) -> Decimal:
     if decimal_value <= 0:
         raise ValueError(f"'{field}' must be greater than 0")
 
+    if maximum is not None and decimal_value > maximum:
+        raise ValueError(f"'{field}' must not exceed {maximum:,.0f}")
+
     return decimal_value
 
 
-def _require_positive_int(data: dict, field: str) -> int:
+def _require_positive_int(data: dict, field: str, maximum: int | None = None) -> int:
     value = data.get(field)
 
     if value is None:
@@ -45,6 +56,9 @@ def _require_positive_int(data: dict, field: str) -> int:
 
     if int_value < 1:
         raise ValueError(f"'{field}' must be at least 1")
+
+    if maximum is not None and int_value > maximum:
+        raise ValueError(f"'{field}' must not exceed {maximum}")
 
     return int_value
 
@@ -66,13 +80,17 @@ def validate_pledge_input(data: dict) -> dict:
     if not EMAIL_RE.match(email):
         raise ValueError("'email' must be a valid email address")
 
-    contributors_count = _require_positive_int(data, "contributors_count")
-    amount = _require_positive_decimal(data, "amount")
+    contributors_count = _require_positive_int(
+        data, "contributors_count", maximum=MAX_CONTRIBUTORS_COUNT
+    )
+    amount = _require_positive_decimal(data, "amount", maximum=MAX_AMOUNT)
     is_monthly = _require_bool(data, "is_monthly")
 
     message = data.get("message")
     if message is not None and not isinstance(message, str):
         raise ValueError("'message' must be a string if provided")
+    if isinstance(message, str) and len(message) > MAX_MESSAGE_LENGTH:
+        raise ValueError(f"'message' must not exceed {MAX_MESSAGE_LENGTH} characters")
 
     validated = {
         "email": email,
