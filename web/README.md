@@ -92,12 +92,19 @@ aws s3 website s3://your-bucket-name --index-document index.html
 
 ```
 web/
-├── index.html      # Main page
+├── index.html      # Home page (progress + stats)
+├── pledge.html     # Pledge calculator (lookup, create/edit, live preview)
+├── success.html    # Post-pledge confirmation
+├── admin.html      # Internal admin: edit balance/goal/breakdown (English only)
 ├── style.css       # Styling
-├── config.js       # Configuration (API URL, hardcoded values)
-├── main.js         # JavaScript logic
+├── config.js       # API URL + fallback defaults; loads live values from GET /config
+├── i18n.js         # CZ/EN dictionary + toggle (see "Languages")
+├── main.js         # Home-page logic
+├── pledge.js       # Pledge-page logic
+├── admin.js        # Admin-page logic
 └── README.md       # This file
 ```
+(Parity checker lives outside `web/` at `tools/check-i18n-parity.js`.)
 
 ## Features
 
@@ -126,3 +133,22 @@ dev API, so the calculator shows real data locally; point it at another API if y
 cd web
 python -m http.server 8000    # open http://localhost:8000
 ```
+
+## Languages (i18n)
+
+The public pages are bilingual — **Czech (default) and English** — with a subtle `CS · EN` toggle in the
+top-right of each page. All user-facing strings live in **one dictionary**, `web/i18n.js`
+(`TRANSLATIONS.cs` / `TRANSLATIONS.en`, flat keys like `index.heroTitle`).
+
+- **Markup** is tagged with `data-i18n="key"` (text), `data-i18n-html="key"` (HTML, e.g. `<strong>`),
+  or `data-i18n-placeholder` / `data-i18n-alt` / `data-i18n-aria-label`.
+- **JS-rendered** strings use `t('key')` (with `{param}` interpolation, e.g. `t('pledge.statusMonthly', { n: 6 })`).
+- The chosen language is stored in `localStorage` and `<html lang>` follows it. Adding a third language
+  (the structure is DE-ready) = add a `de` block with the same keys.
+- `admin.html` is an internal tool and stays English (not part of the public i18n).
+
+**Parity check** — every language must define exactly the same keys. Run from the repo root:
+```bash
+node tools/check-i18n-parity.js
+```
+It exits non-zero and lists any missing/extra key, so a half-translated string can't ship.

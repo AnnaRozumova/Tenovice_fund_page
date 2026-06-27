@@ -36,8 +36,8 @@ def _require_positive_decimal(data: dict, field: str, maximum: Decimal | None = 
 
     try:
         decimal_value = Decimal(str(value))
-    except (InvalidOperation, ValueError):
-        raise ValueError(f"'{field}' must be a valid number")
+    except (InvalidOperation, ValueError) as exc:
+        raise ValueError(f"'{field}' must be a valid number") from exc
 
     if decimal_value <= 0:
         raise ValueError(f"'{field}' must be greater than 0")
@@ -56,8 +56,8 @@ def _require_positive_int(data: dict, field: str, maximum: int | None = None) ->
 
     try:
         int_value = int(value)
-    except (ValueError, TypeError):
-        raise ValueError(f"'{field}' must be an integer")
+    except (ValueError, TypeError) as exc:
+        raise ValueError(f"'{field}' must be an integer") from exc
 
     if int_value < 1:
         raise ValueError(f"'{field}' must be at least 1")
@@ -80,8 +80,8 @@ def _require_non_negative_int(data: dict, field: str) -> int:
 
     try:
         int_value = int(value)
-    except (ValueError, TypeError):
-        raise ValueError(f"'{field}' must be an integer")
+    except (ValueError, TypeError) as exc:
+        raise ValueError(f"'{field}' must be an integer") from exc
 
     if int_value < 0:
         raise ValueError(f"'{field}' must not be negative")
@@ -137,13 +137,13 @@ def validate_pledge_input(data: dict) -> dict:
 
         try:
             end_month = int(end_month)
-        except (ValueError, TypeError):
-            raise ValueError("'end_month' must be an integer")
+        except (ValueError, TypeError) as exc:
+            raise ValueError("'end_month' must be an integer") from exc
 
         try:
             end_year = int(end_year)
-        except (ValueError, TypeError):
-            raise ValueError("'end_year' must be an integer")
+        except (ValueError, TypeError) as exc:
+            raise ValueError("'end_year' must be an integer") from exc
 
         if end_month < 1 or end_month > 12:
             raise ValueError("'end_month' must be between 1 and 12")

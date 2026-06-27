@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Tenovice Fundraising</title>
+  <title data-i18n="index.docTitle">Tenovice Fundraising</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -11,46 +11,51 @@
     <!-- Header with Logo -->
     <header class="header">
       <div class="logo">
-        <img src="images/logo_kagyu.svg" alt="Karma Kagyu buddhism">
-      </img>
+        <img src="images/logo_kagyu.svg" data-i18n-alt="common.logoAlt" alt="Karma Kagyu buddhism">
+      </div>
     </header>
 
     <!-- Hero Section -->
     <section class="hero">
+      <div class="lang-toggle corner" role="group" data-i18n-aria-label="common.langLabel" aria-label="Language">
+        <button type="button" class="lang-btn" data-set-lang="cs">CS</button>
+        <span class="lang-sep" aria-hidden="true">·</span>
+        <button type="button" class="lang-btn" data-set-lang="en">EN</button>
+      </div>
       <div class="hero-content">
         <div class="hero-left">
-          <h1 class="title">ONE Tenovice Project</h1>
-          <p class="description">
+          <h1 class="title" data-i18n="index.heroTitle">ONE Tenovice Project</h1>
+          <p class="description" data-i18n="index.heroDesc">
             Tenovice is a big project for many generations. At the moment we focus our development
                       on 3 main directions: New Gompa, Sangha House and new land Basecamp North.
           </p>
         </div>
         <div class="hero-right">
-          <img src="images/Make_your_pure_land.png" alt="Make your pure land" class="hero-image">
+          <img src="images/Make_your_pure_land.png" data-i18n-alt="index.heroImageAlt" alt="Make your pure land" class="hero-image">
         </div>
       </div>
 
       <div class="hero-banner">
-        <img src="images/general_img_tenovice_3.webp" alt="Project Banner" class="hero-banner-image">
+        <img src="images/general_img_tenovice_3.webp" data-i18n-alt="index.bannerAlt" alt="Project Banner" class="hero-banner-image">
       </div>
     </section>
 
     <!-- Progress Section -->
     <section class="progress-section">
-      <h2>Fundraising Progress</h2>
+      <h2 data-i18n="index.progressHeading">Fundraising Progress</h2>
 
       <!-- Real Money Status -->
       <div class="status-card">
-        <div class="status-label">Current Balance</div>
+        <div class="status-label" data-i18n="index.currentBalanceLabel">Current Balance</div>
         <div class="status-amount" id="currentBalance">€320,000</div>
-        <div class="status-sublabel">Real money on account</div>
+        <div class="status-sublabel" data-i18n="index.currentBalanceSub">Real money on account</div>
       </div>
 
       <!-- Goal -->
       <div class="status-card">
-        <div class="status-label">Our Goal</div>
+        <div class="status-label" data-i18n="index.goalLabel">Our Goal</div>
         <div class="status-amount" id="fundraisingGoal">€2,700,000</div>
-        <div class="status-sublabel">Target amount</div>
+        <div class="status-sublabel" data-i18n="index.goalSub">Target amount</div>
       </div>
 
       <!-- Progress Bar -->
@@ -58,26 +63,26 @@
         <div class="progress-bar" id="progressBar" style="width: 25%"></div>
       </div>
       <div class="progress-text">
-        <span id="progressPercent">25%</span> of goal reached
+        <span id="progressPercent">25%</span> <span data-i18n="index.progressReached">of goal reached</span>
       </div>
     </section>
 
     <!-- Pledges Status -->
     <section class="pledges-section">
-      <h2>Sangha Pledges</h2>
+      <h2 data-i18n="index.pledgesHeading">Sangha Pledges</h2>
 
       <div class="pledges-stats">
         <div class="pledge-stat">
-          <div class="pledge-stat-number" id="pledgesTotal">Loading...</div>
-          <div class="pledge-stat-label">Total Pledged</div>
+          <div class="pledge-stat-number" id="pledgesTotal">…</div>
+          <div class="pledge-stat-label" data-i18n="index.totalPledgedLabel">Total Pledged</div>
         </div>
         <div class="pledge-stat">
-          <div class="pledge-stat-number" id="pledgesCount">Loading...</div>
-          <div class="pledge-stat-label">Supporters</div>
+          <div class="pledge-stat-number" id="pledgesCount">…</div>
+          <div class="pledge-stat-label" data-i18n="index.supportersLabel">Supporters</div>
         </div>
         <div class="pledge-stat">
-          <div class="pledge-stat-number" id="pledgesMonthly">Loading...</div>
-          <div class="pledge-stat-label">Monthly Recurring</div>
+          <div class="pledge-stat-number" id="pledgesMonthly">…</div>
+          <div class="pledge-stat-label" data-i18n="index.monthlyLabel">Monthly Recurring</div>
         </div>
       </div>
     </section>
@@ -85,16 +90,17 @@
     <!-- Call to Action -->
     <section class="cta-section">
       <div class="heart-icon">❤️</div>
-      <h2>Do you want to be a heart of it?</h2>
-      <button class="cta-button" id="pledgeButton">Make a Pledge</button>
+      <h2 data-i18n="index.ctaHeading">Do you want to be a heart of it?</h2>
+      <button class="cta-button" id="pledgeButton" data-i18n="index.ctaButton">Make a Pledge</button>
     </section>
 
     <!-- Footer -->
     <footer class="footer">
-      <p>&copy; 2026 Tenovice Project. All rights reserved.</p>
+      <p data-i18n="footer.copyright">&copy; 2026 Tenovice Project. All rights reserved.</p>
     </footer>
   </div>
 
+  <script src="i18n.js"></script>
   <script src="config.js"></script>
   <script src="main.js"></script>
 </body>

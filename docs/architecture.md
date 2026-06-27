@@ -46,7 +46,7 @@ and works on phone + desktop.
 
 | Layer | Path | What it is |
 |-------|------|------------|
-| Frontend | `web/` | Plain HTML/CSS/JS static site, no build tools. Deployed to S3. |
+| Frontend | `web/` | Plain HTML/CSS/JS static site, no build tools. Deployed to S3. Bilingual CZ/EN via `web/i18n.js` (D1; see "Internationalization"). |
 | Backend | `services/pledges_api/src/` | Framework-agnostic Python; each handler is a Lambda `handler(event, context)`. |
 | Infra | `cdk/` | One CDK stack: DynamoDB + Lambdas + HTTP API + S3 site. |
 
@@ -162,6 +162,16 @@ against the `ADMIN_SECRET` Lambda env var with a **constant-time** compare (`hma
 deploy environment, which the CI/CD pipeline (D13) sources from SSM / Secrets Manager; it is **never
 committed and never logged**. A single shared secret over HTTPS is intentional — Cognito would be overkill
 for one trusted editor.
+
+## Internationalization (i18n, D1)
+
+Public pages are bilingual — **CZ default + EN**, structure DE-ready (decision D7). One flat-key dictionary
+`web/i18n.js` (`TRANSLATIONS.cs` / `.en`) holds every user-facing string. Markup is tagged with `data-i18n`
+(text), `data-i18n-html` (innerHTML), and `data-i18n-placeholder`/`-alt`/`-aria-label`; runtime strings use
+`t('key', {params})`. `applyTranslations(lang)` updates the DOM, sets `<html lang>`, and dispatches an
+`i18n:changed` event so JS-rendered strings re-render. The language persists in `localStorage`; a subtle
+`CS · EN` toggle sits top-right of the first card on each page. `admin.html` is internal and stays English.
+A parity checker (`tools/check-i18n-parity.js`) fails if any language's key set diverges from the default.
 
 ## Testing
 

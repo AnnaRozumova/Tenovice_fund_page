@@ -176,18 +176,14 @@ function renderPreview() {
   $('previewGoalAmount').textContent = formatCurrency(CONFIG.FUNDRAISING_GOAL);
   $('previewProgressBar').style.width = `${Math.max(0, Math.min(preview.progressPercent, 100))}%`;
 
-  if (isEditMode) {
-    $('previewModeNote').innerHTML = '<strong>Edit mode:</strong> preview replaces your existing pledge in current totals.';
-  } else {
-    $('previewModeNote').innerHTML = '<strong>New pledge mode:</strong> preview adds this pledge on top of current totals.';
-  }
+  $('previewModeNote').innerHTML = isEditMode ? t('pledge.modeEdit') : t('pledge.modeCreate');
 
   if (values.is_monthly && values.end_month && values.end_year) {
-    setPreviewStatus(`Monthly impact uses ${preview.remainingMonths} remaining month(s).`);
+    setPreviewStatus(t('pledge.statusMonthly', { n: preview.remainingMonths }));
   } else if (values.is_monthly) {
-    setPreviewStatus('Select end month and end year to calculate total impact.');
+    setPreviewStatus(t('pledge.statusSelectEnd'));
   } else {
-    setPreviewStatus(isEditMode ? 'Editing existing one-time pledge.' : 'Creating new one-time pledge.');
+    setPreviewStatus(isEditMode ? t('pledge.statusEditOneTime') : t('pledge.statusCreateOneTime'));
   }
 }
 
@@ -206,7 +202,7 @@ async function loadStats() {
     };
   } catch (error) {
     console.error('Error loading stats:', error);
-    setPreviewStatus('Could not load current stats. Preview may be unavailable.');
+    setPreviewStatus(t('pledge.statusNoStats'));
   }
 }
 
@@ -218,11 +214,11 @@ function populateExistingSummary(data) {
   $('existingMessage').textContent = data.message ? data.message : '-';
 
   if (data.is_monthly) {
-    $('existingType').textContent = 'Monthly recurring';
+    $('existingType').textContent = t('pledge.typeMonthly');
     $('existingEndDate').textContent = `${data.end_month}/${data.end_year}`;
     $('existingEndDateRow').classList.remove('hidden');
   } else {
-    $('existingType').textContent = 'One-time';
+    $('existingType').textContent = t('pledge.typeOneTime');
     $('existingEndDateRow').classList.add('hidden');
   }
 }
@@ -247,8 +243,7 @@ function enterCreateMode(email) {
   hideLookupCardsForForm();
   showFormSection();
 
-  $('pledgeFormTitle').textContent = 'Your pledge';
-  $('pledgeFormIntro').textContent = 'All preview values below update live before you save.';
+  setFormModeText();
   $('email').readOnly = false;
 
   populateForm({
@@ -271,8 +266,7 @@ function enterEditMode() {
   hideLookupCardsForForm();
   showFormSection();
 
-  $('pledgeFormTitle').textContent = 'Update your pledge';
-  $('pledgeFormIntro').textContent = 'You are editing an existing pledge. Preview values replace your current pledge in totals.';
+  setFormModeText();
   $('email').readOnly = true;
 
   populateForm(existingPledge);
@@ -291,12 +285,12 @@ async function handleLookup() {
   const email = $('lookupEmail').value.trim();
 
   if (!email) {
-    showError('lookupError', 'Please enter your email.');
+    showError('lookupError', t('pledge.errEmailRequired'));
     return;
   }
 
   lookupButton.disabled = true;
-  lookupButton.textContent = 'Checking...';
+  lookupButton.textContent = t('pledge.btnChecking');
 
   try {
     await loadStats();
@@ -318,37 +312,37 @@ async function handleLookup() {
     $('existingPledgeCard').classList.remove('hidden');
   } catch (error) {
     console.error('Error looking up pledge:', error);
-    showError('lookupError', 'Could not check existing pledge. Please try again.');
+    showError('lookupError', t('pledge.errLookup'));
   } finally {
     lookupButton.disabled = false;
-    lookupButton.textContent = 'Continue';
+    lookupButton.textContent = t('pledge.continue');
   }
 }
 
 function validateForm(values) {
   if (!values.email) {
-    return 'Please enter your email.';
+    return t('pledge.errEmailRequired');
   }
 
   if (values.contributors_count <= 0) {
-    return 'Contributors count must be greater than 0.';
+    return t('pledge.errContributors');
   }
 
   if (values.amount <= 0) {
-    return 'Amount must be greater than 0.';
+    return t('pledge.errAmount');
   }
 
   if (values.is_monthly) {
     if (!values.end_month || values.end_month < 1 || values.end_month > 12) {
-      return 'End month must be between 1 and 12.';
+      return t('pledge.errEndMonth');
     }
 
     if (!values.end_year || values.end_year < new Date().getFullYear()) {
-      return 'Please enter a valid end year.';
+      return t('pledge.errEndYear');
     }
 
     if (getRemainingMonths(values.end_month, values.end_year) <= 0) {
-      return 'Monthly pledge end date must be in the current or a future month.';
+      return t('pledge.errEndPast');
     }
   }
 
@@ -392,7 +386,7 @@ async function submitPledge(event) {
   }
 
   submitButton.disabled = true;
-  submitButton.textContent = 'Saving...';
+  submitButton.textContent = t('pledge.btnSaving');
 
   try {
     const response = await fetch(`${CONFIG.API_URL}/pledges`, {
@@ -410,9 +404,9 @@ async function submitPledge(event) {
     window.location.href = 'success.html';
   } catch (error) {
     console.error('Error saving pledge:', error);
-    showError('formError', 'Could not save pledge. Please try again.');
+    showError('formError', t('pledge.errSave'));
     submitButton.disabled = false;
-    submitButton.textContent = 'Save pledge';
+    submitButton.textContent = t('pledge.save');
   }
 }
 
@@ -440,13 +434,37 @@ function setupLookup() {
   $('editExistingButton').addEventListener('click', enterEditMode);
 }
 
+// Title + intro depend on create vs edit mode, so they're set in JS (not via
+// data-i18n). Re-applied whenever the mode or the language changes.
+function setFormModeText() {
+  $('pledgeFormTitle').textContent = isEditMode
+    ? t('pledge.formTitleEdit')
+    : t('pledge.formTitleCreate');
+  $('pledgeFormIntro').textContent = isEditMode
+    ? t('pledge.formIntroEdit')
+    : t('pledge.formIntroCreate');
+}
+
+// On a language switch, refresh the strings that JS renders (data-i18n covers
+// the static markup automatically; these are computed at runtime).
+function refreshDynamicI18n() {
+  if (existingPledge && !$('existingPledgeCard').classList.contains('hidden')) {
+    populateExistingSummary(existingPledge);
+  }
+  if (!$('pledgeFlowSection').classList.contains('hidden')) {
+    setFormModeText();
+    renderPreview();
+  }
+}
+
 async function initPledgePage() {
   await loadConfig();
   setupLookup();
   setupForm();
+  document.addEventListener('i18n:changed', refreshDynamicI18n);
   $('previewGoalAmount').textContent = formatCurrency(CONFIG.FUNDRAISING_GOAL);
   $('previewProgressAmount').textContent = formatCurrency(CONFIG.CURRENT_BALANCE);
-  setPreviewStatus('Enter your email to begin.');
+  setPreviewStatus(t('pledge.statusEnterEmail'));
 }
 
 if (document.readyState === 'loading') {

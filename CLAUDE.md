@@ -26,6 +26,7 @@ AWS CDK (Python) describes & deploys all of the above.
 ```
 
 - **Frontend** `web/` — plain HTML/CSS/JS, **no build step** (no npm, no bundler). `<html lang="cs">`.
+  Bilingual (CZ default + EN, DE-ready) via `web/i18n.js` — see "Internationalization" below.
 - **Backend** `services/pledges_api/src/` — framework-agnostic Python (NOT a web framework). Handlers are
   plain Lambda `handler(event, context)` functions; domain logic kept framework-free on purpose.
 - **Infra** `cdk/` — one stack (`FundraisingCalculatorStack`) = DynamoDB + Lambdas + HTTP API + S3 site.
@@ -181,6 +182,16 @@ pwsh ./serve.ps1     # serves web/ at http://localhost:8000 (no build, no deploy
 The API base is a single config value — `CONFIG.API_URL` in `web/config.js` (defaults to the live dev
 API, so the calculator shows real data locally). See `web/README.md` for the plain `python -m http.server`
 fallback.
+
+## Internationalization (i18n)
+
+Public pages are bilingual — **CZ (default) + EN**, structure DE-ready (decision D7). All user-facing
+strings live in one flat-key dictionary `web/i18n.js` (`TRANSLATIONS.cs` / `.en`). Markup uses
+`data-i18n` (text), `data-i18n-html` (innerHTML), `data-i18n-placeholder`/`-alt`/`-aria-label`; JS uses
+`t('key', {params})`. The choice persists in `localStorage`, `<html lang>` follows, and an `i18n:changed`
+event lets JS re-render its dynamic strings. A subtle `CS · EN` toggle sits in the top-right of the first
+card on each page. `admin.html` is internal tooling and stays English. **Parity gate:** every language
+must define the same keys — `node tools/check-i18n-parity.js` (non-zero on drift). Added D1.
 
 ## Configuration
 
