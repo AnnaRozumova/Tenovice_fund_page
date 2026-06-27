@@ -211,8 +211,9 @@ strings live in one flat-key dictionary `web/i18n.js` (`TRANSLATIONS.cs` / `.en`
 `data-i18n` (text), `data-i18n-html` (innerHTML), `data-i18n-placeholder`/`-alt`/`-aria-label`; JS uses
 `t('key', {params})`. The choice persists in `localStorage`, `<html lang>` follows, and an `i18n:changed`
 event lets JS re-render its dynamic strings. A subtle `CS · EN` toggle sits in the top-right of the first
-card on each page. `admin.html` is internal tooling and stays English. **Parity gate:** every language
-must define the same keys — `node tools/check-i18n-parity.js` (non-zero on drift). Added D1.
+card on each page (on `success.html` it sits under the logo in the header instead). `admin.html` is internal
+tooling and stays English. **Parity gate:** every language must define the same keys —
+`node tools/check-i18n-parity.js` (non-zero on drift). Added D1.
 
 ## Configuration
 

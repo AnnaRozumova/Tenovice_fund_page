@@ -47,16 +47,17 @@ body {
   height: auto;
 }
 
-/* On the pledge page the logo header sits directly above the banner image, so
-   stretch the logo (its red rule + mark are built into the SVG) to the full
-   container width — same width as the banner, mark to the right edge. */
-.header-banner {
-  padding-bottom: 0;
+/* Success page: keep the logo its natural (home-page) size, and wrap it with the
+   language toggle in an inline-block row that shrinks to the logo's width. The
+   header centers the row, and the toggle right-aligns to the logo's own right
+   edge — so it sits directly under the logo, not out at the page edge. */
+.header-row {
+  display: inline-block;
+  max-width: 100%;
 }
 
-.header-banner .logo img {
-  width: 100%;
-  height: auto;
+.header-row .logo img {
+  display: block;
 }
 
 .logo-placeholder {
@@ -82,6 +83,15 @@ body {
   top: 16px;
   right: 20px;
   z-index: 2;
+}
+
+/* Language toggle under the logo, right-aligned (success page) — sits below the
+   logo mark in the top-right; the centered confirmation card made a corner
+   toggle look out of place. */
+.header-lang {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
 }
 
 /* Pledge hero: stack the toggle above the existing back link, top-right */
@@ -168,8 +178,6 @@ body {
   color: var(--text-light);
   line-height: 1.8;
   text-align: justify;
-  -webkit-hyphens: auto;
-  hyphens: auto;
 }
 
 .hero-banner {
@@ -297,10 +305,11 @@ body {
   letter-spacing: 1px;
 }
 
-/* Discreet dw-connect link under the hero intro */
+/* Discreet dw-connect link under the hero intro — centered below the text */
 .hero-dwlink {
   margin-top: 16px;
   font-size: 0.95rem;
+  text-align: center;
 }
 
 .hero-dwlink-note {
@@ -390,6 +399,9 @@ body {
 
   .description {
     font-size: 1rem;
+    /* Left-align on narrow columns: with hyphenation off, justify here would
+       leave large gaps between words. Desktop keeps justify. */
+    text-align: left;
   }
 
   .status-amount {
@@ -678,7 +690,7 @@ body {
 /* Success Page */
 .success-card {
   max-width: 600px;
-  margin: 60px auto;
+  margin: 28px auto;
   text-align: center;
 }
 
@@ -738,6 +750,190 @@ body {
   text-decoration: none;
   background: var(--primary-color);
   color: #fff;
+}
+
+/* The actions sit in their own card below the payment details, so it needs less
+   top margin than the standalone success card. The inner margin-top is dropped
+   too, so the buttons sit vertically centered within the card's padding. */
+.success-card-actions {
+  margin-top: 0;
+}
+
+.success-card-actions .success-actions {
+  margin-top: 0;
+}
+
+/* Payment instructions (E1) — QR codes (one-time) / standing order (monthly) */
+.payment-card {
+  background: var(--bg-white);
+  border-radius: var(--border-radius);
+  box-shadow: var(--shadow);
+  border-top: 4px solid var(--primary-color);
+  padding: 32px;
+  max-width: 760px;
+  margin: 36px auto 24px;
+}
+
+.payment-card h2 {
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: var(--text-dark);
+  margin-bottom: 8px;
+}
+
+.payment-note {
+  color: var(--text-light);
+  margin-bottom: 24px;
+}
+
+/* Two columns; each pairs a QR (one-time) above its own account window. On
+   mobile the columns stack, so a QR sits directly above its matching window. */
+.payment-columns {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.payment-col {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  /* Each account group (QR + its details) is its own panel, so the two are
+     separated by a distinct box rather than by whitespace alone. */
+  background: var(--bg-light);
+  border-radius: 10px;
+  padding: 20px;
+}
+
+.qr-card {
+  text-align: center;
+  margin: 0;
+}
+
+.qr-card img {
+  width: 180px;
+  height: 180px;
+  border: 1px solid var(--bg-light);
+  border-radius: 8px;
+  background: #fff;
+}
+
+.qr-card figcaption {
+  margin-top: 8px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-dark);
+}
+
+/* The panel (.payment-col) now provides the box; the bank-card just holds the
+   rows below the QR. */
+.bank-card {
+  background: transparent;
+}
+
+.bank-card h3 {
+  font-size: 1.1rem;
+  font-weight: 700;
+  color: var(--text-dark);
+  margin-bottom: 14px;
+  padding-bottom: 10px;
+  border-bottom: 2px solid rgba(231, 76, 60, 0.3);
+}
+
+.bank-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.bank-row dt {
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: var(--text-light);
+  margin-bottom: 2px;
+}
+
+.bank-row dd {
+  display: flex;
+  /* Top-align so the copy button stays beside the first line when a long value
+     (e.g. the IBAN) wraps onto two lines, instead of floating centered. */
+  align-items: flex-start;
+  gap: 8px;
+  font-size: 0.95rem;
+  word-break: break-word;
+}
+
+/* Nudge the value down slightly so it optically lines up with the copy button. */
+.bank-row dd .bank-value {
+  padding-top: 4px;
+}
+
+.bank-value {
+  font-family: 'Courier New', Courier, monospace;
+  font-weight: 600;
+}
+
+.copy-btn {
+  flex: none;
+  border: 1px solid var(--bg-light);
+  background: #fff;
+  color: var(--text-light);
+  border-radius: 6px;
+  min-width: 32px;
+  min-height: 32px;
+  cursor: pointer;
+  font-size: 0.95rem;
+  line-height: 1;
+  transition: var(--transition);
+}
+
+.copy-btn:hover {
+  color: var(--text-dark);
+  border-color: var(--text-light);
+}
+
+.copy-btn.copied {
+  color: var(--success-color);
+  border-color: var(--success-color);
+}
+
+.bank-hint {
+  margin-top: 14px;
+  font-size: 0.85rem;
+  color: var(--text-light);
+}
+
+@media (max-width: 640px) {
+  .payment-columns {
+    grid-template-columns: 1fr;
+    /* The two account panels stack; the boxes themselves give the separation. */
+    gap: 20px;
+  }
+
+  .payment-card {
+    padding: 24px 20px;
+  }
+
+  /* Tighten the header + the gap above the confirmation card on phones. */
+  .header {
+    padding: 10px 0;
+  }
+
+  .header-lang {
+    margin-top: 6px;
+  }
+
+  /* The logo wordmark scales down a lot on a narrow phone; keep the toggle small
+     too so it doesn't look larger than the logo text. */
+  .lang-btn,
+  .lang-sep {
+    font-size: 0.68rem;
+  }
+
+  .success-card {
+    margin: 8px auto;
+  }
 }
 
 @media (max-width: 992px) {

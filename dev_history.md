@@ -5,6 +5,52 @@ and how it was verified. Companion to `CLAUDE.md` (developer quick-start) and `d
 
 ---
 
+## 2026-06-23 — E1: success page shows payment details (QR / standing order)
+
+**Why:** a pledge is only a public promise — no money moves through the site. After saving, the user must
+send the gift themselves, so the success page now shows the right payment path for the pledge they made
+(decision: Phase E). Frontend-only — no Python/CDK change.
+
+**What changed (all under `web/`):**
+- **`success.html`** (rewritten) — added a payment section below the thank-you card. The pledge **type**
+  decides the path: **one-time → QR codes**, **monthly → standing-order bank details** (a recurring order
+  can't be a single QR payment). Two **paired panels** (`.payment-col`): each pairs a QR (one-time only)
+  **above its own account window** — Czech account (CZK) and International account (EUR) — so on mobile a QR
+  sits directly above the window it belongs to. Every value (account number, variable symbol, IBAN, BIC,
+  purpose, message) is **copyable** via a copy button. The language toggle moved out of the card corner into
+  the header, right-aligned under the logo (`.header-row` wrapper).
+- **`success.js`** (new) — reads `?type=one-time|monthly` from the URL, swaps the heading/intro `data-i18n`
+  keys and toggles the QR figures (`[data-qr]`) vs the standing-order note, and wires the copy buttons.
+  Copy reads a literal `data-copy-target` (e.g. the IBAN without spaces) **or** the live text of an element
+  via `data-copy-el` (the localized message value). Clipboard uses `navigator.clipboard` with an
+  `execCommand` fallback for non-secure contexts. Re-applies the type-dependent copy on `i18n:changed`.
+- **`pledge.js`** — after a successful save, the redirect carries the type: `success.html?type=<one-time|monthly>`.
+- **`i18n.js`** — added the `payment.*` keys (CZ + EN). The bank **message** value is localized
+  (`payment.messageValue`: `Prijmeni/Dar/Tenovice` / `Surname/Gift/Tenovice`).
+- **`style.css`** — payment-card (brand-red top accent), two-column panels collapsing to one on ≤640 px,
+  bank-detail rows + copy buttons (top-aligned so the button stays beside a wrapped IBAN), header-row wrapper.
+- **`pledge.html`** — dropped the `header-banner` class so the logo is its natural (home-page) size; the dead
+  `.header-banner` CSS was removed (no page used it after this).
+- **`web/images/qr_cz.jpg`, `qr_intl.jpg`** — the QR images from the dw-connect source materials.
+
+**Payment details** (verified against the dw-connect source): CZ acct `19-2247060207/0100`, variable symbol
+`YYMMDD0108`, message `Surname/Gift/Tenovice`; INTL `International Diamondway Buddhism Foundation`, GLS Bank,
+IBAN `DE24 4306 0967 0046 9538 18`, BIC `GENODEM1GLS`, purpose `TENOVICE`.
+
+**What did NOT change:** no backend/CDK/JS pledge logic. Bundled in were a few review-driven cosmetic tweaks
+across pages (home hero: dropped `hyphens` so "directions" no longer breaks mid-word, centered the dw-connect
+link; consistent natural-size logo on pledge/calc).
+
+**Verification:** gate green (`ruff` clean, **77 passed**), i18n parity **136=136**, `/code-review` = no
+findings (no orphaned selectors, IBAN strip correct, all `data-i18n` keys present in both languages). Measured
+in-browser via `getBoundingClientRect` (screenshot tool unavailable): one-time shows QR + bank panels, monthly
+hides QR and shows the standing-order note; each QR centered above its window (desktop) / stacked above it
+(mobile, order QR-CZ → CZ window → QR-INTL → INTL window); copy buttons resolve the right value incl. the
+localized message; CZ↔EN switch re-renders; no horizontal overflow at 375 / 1000 / 1280 px. The full
+save→success flow was driven end-to-end against the local dev-API harness (real handlers over moto).
+
+---
+
 ## 2026-06-22 — D4: responsive pass (phone + desktop)
 
 **Why:** make the whole flow mobile-first and verified at phone + desktop widths (decision D10). Frontend-only
