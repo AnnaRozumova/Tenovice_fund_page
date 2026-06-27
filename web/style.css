@@ -293,6 +293,19 @@ body {
   letter-spacing: 1px;
 }
 
+/* Discreet dw-connect link under the hero intro */
+.hero-dwlink {
+  margin-top: 16px;
+  font-size: 0.95rem;
+}
+
+.hero-dwlink-note {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.8rem;
+  color: var(--text-light);
+}
+
 /* CTA Section */
 .cta-section {
   text-align: center;

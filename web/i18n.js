@@ -42,6 +42,10 @@ const TRANSLATIONS = {
     'index.ctaHeading': 'Chceš být u zrodu toho všeho?',
     'index.ctaButton': 'Přidat příslib',
 
+    // Home page — dw-connect link (hero)
+    'index.dwConnectLink': 'Více o projektu Těnovice na dw-connect →',
+    'index.dwConnectNote': 'Pro přihlášené členy dw-connect.',
+
     // Pledge page — static
     'pledge.docTitle': 'Přidat příslib | Fundraising Těnovice',
     'pledge.eyebrow': 'Fundraising Těnovice',
@@ -178,6 +182,10 @@ const TRANSLATIONS = {
     'index.monthlyLabel': 'Monthly Recurring',
     'index.ctaHeading': 'Do you want to be a heart of it?',
     'index.ctaButton': 'Make a Pledge',
+
+    // Home page — dw-connect link (hero)
+    'index.dwConnectLink': 'More about the Tenovice project on dw-connect →',
+    'index.dwConnectNote': 'For logged-in dw-connect members.',
 
     // Pledge page — static
     'pledge.docTitle': 'Make a Pledge | Tenovice Fundraising',

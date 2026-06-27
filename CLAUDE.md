@@ -229,6 +229,9 @@ must define the same keys — `node tools/check-i18n-parity.js` (non-zero on dri
   **fallback defaults** (EUR). `loadConfig()` fetches `GET /config` on page load and overrides them (C1);
   the hardcoded values are used only if that request fails. `web/admin.html` + `admin.js` (C2) edit the
   numbers: paste the secret, prefill from `GET /config`, save via `POST /config`.
+  The home page shows a discreet link to the members-only dw-connect project page (D3); the project is
+  presented as **one** Tenovice direction (Ondra), so there is no per-direction breakdown UI — `CONFIG.BREAKDOWN`
+  remains as the `/config` fallback but is not rendered.
 
 ## Adding a new Lambda handler
 1. Create the handler in `services/pledges_api/src/handlers/`.

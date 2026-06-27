@@ -5,6 +5,28 @@ and how it was verified. Companion to `CLAUDE.md` (developer quick-start) and `d
 
 ---
 
+## 2026-06-22 — D3: discreet dw-connect link (one Tenovice — no 3-direction breakdown)
+
+**Why:** the project is **one** direction ("ONE Tenovice"), not three (Ondra). So we do **not** present a
+"3 main directions" breakdown; dw-connect already has the full story, so a single discreet link suffices.
+(An earlier take on D3 that rendered a 3-card breakdown with cover photos was dropped before merge.)
+Frontend-only — no Python/CDK change.
+
+**What changed (all under `web/`):**
+- **`index.html`** — a discreet dw-connect link under the hero intro text (a `text-link` + a small note that
+  it needs a logged-in dw-connect membership). No breakdown section.
+- **`i18n.js`** — 2 keys per language: `index.dwConnectLink` + `index.dwConnectNote` (CZ+EN). Parity held.
+- **`style.css`** — small `.hero-dwlink` / `.hero-dwlink-note` styling.
+
+**What did NOT change:** no backend/CDK; `CONFIG.BREAKDOWN` stays as the `/config` fallback (from C1) but is
+not rendered — `main.js` no longer reads it.
+
+**Verification:** gate green (`ruff` clean, **77 passed**), i18n parity holds, `node --check` on the JS.
+Link points to the members-only `https://dw-connect.org/projects/tenovice-project`, opens in a new tab
+(`target=_blank`, `rel="noopener noreferrer"`), CZ↔EN re-translates, no layout regression at desktop/375 px.
+
+---
+
 ## 2026-06-19 — D2: calculator + preview (display-only) and a separate pledge-save flow
 
 **Why:** wire the locked three-zone page design to the backend. The "what-if" calculator must get its
