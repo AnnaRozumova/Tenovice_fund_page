@@ -5,6 +5,38 @@ and how it was verified. Companion to `CLAUDE.md` (developer quick-start) and `d
 
 ---
 
+## 2026-06-19 — T1: POSIX dev scripts (`check.sh` / `serve.sh`)
+
+**Why:** the committed dev helpers were Windows-only (`check.ps1` / `serve.ps1`), but the deploy pipeline and
+Anna/Ondra run **Linux**, where they don't execute (Ondra's ask; decision D16). Add bash equivalents and make
+them the canonical form in the docs; keep the `.ps1` versions as a Windows-local convenience.
+
+**What changed:**
+- **`check.sh` (new)** — mirrors `check.ps1`: bootstraps a Python 3.11 `.venv`, installs `requirements-dev.txt`,
+  runs `ruff check` then `pytest -q -rs`; `set -euo pipefail` makes any failing step exit non-zero. A small
+  `venv_bin` helper locates interpreters under either `bin/` (Linux/macOS) or `Scripts/`(+`.exe`) (Windows),
+  so the **same `.venv` works whichever script created it**.
+- **`serve.sh` (new)** — mirrors `serve.ps1`: serves `web/` over `python -m http.server` (prefers
+  `python3.11`, falls back to `python3`/`python`) with the same `Cache-Control: no-store` no-cache handler;
+  optional port arg (default 8000).
+- **Docs** — `web/README.md` "Testing Locally" and repo `CLAUDE.md` (Quality gate + Run-the-site sections)
+  now **lead with the `.sh` commands**, noting the `.ps1` Windows equivalents. The `Makefile check` target
+  already gives Unix/CI parity.
+
+**What did NOT change:** no app/behavior, no infra, no `.ps1` removed (kept for Windows). Tooling-only.
+
+**Verification:**
+```
+$ bash ./check.sh        → Using Python 3.11.9 · ruff: All checks passed! · 77 passed · Quality gate PASSED
+$ bash ./serve.sh 8127   → GET / 200 · GET /pledge.html 200 · Cache-Control: no-store, must-revalidate
+$ bash -n check.sh serve.sh → syntax OK
+```
+Run via Git Bash on Windows against the existing 3.11 venv (proves the script logic); the only Linux
+difference — `bin/` vs `Scripts/` and `python3.11` for venv creation — is handled, so Ondra's Linux CI
+confirms the rest.
+
+---
+
 ## 2026-06-19 — D2a: backend `POST /calculate` (server-side simulator math)
 
 **Why:** the calculator on the pledge page is a stateless *what-if simulator* (decision D15) — "if N friends

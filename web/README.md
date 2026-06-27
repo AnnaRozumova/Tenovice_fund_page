@@ -119,11 +119,13 @@ web/
 
 Serve the site over HTTP — don't open `index.html` from `file://`, API calls get blocked by CORS.
 
-**One command (Windows-first), from the repo root:**
-```powershell
-pwsh ./serve.ps1              # serves web/ at http://localhost:8000 (Python 3.11)
-pwsh ./serve.ps1 -Port 8080   # custom port
+**One command, from the repo root:**
+```bash
+bash ./serve.sh          # serves web/ at http://localhost:8000 (Linux/macOS/CI)
+bash ./serve.sh 8080     # custom port
 ```
+On Windows the equivalent is `pwsh ./serve.ps1` (`-Port 8080` for a custom port). Both serve `web/` on
+Python 3.11 and send `Cache-Control: no-store` so edits show on a normal refresh.
 
 The **API base is a single config value** — `CONFIG.API_URL` in `config.js`. It defaults to the live
 dev API, so the calculator shows real data locally; point it at another API if you need to.
@@ -131,7 +133,7 @@ dev API, so the calculator shows real data locally; point it at another API if y
 **Plain Python (any OS):**
 ```bash
 cd web
-python -m http.server 8000    # open http://localhost:8000
+python -m http.server 8000    # open http://localhost:8000 (no no-cache header)
 ```
 
 ## Languages (i18n)
