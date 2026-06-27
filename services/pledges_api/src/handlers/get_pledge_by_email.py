@@ -30,6 +30,25 @@ def response(status_code: int, body: dict) -> dict:
     }
 
 
+# Fields the caller is allowed to see about their own pledge. The raw DynamoDB
+# item is never returned wholesale — we project an explicit allowlist so internal
+# bookkeeping fields cannot leak, and so the endpoint stays safe as the schema grows.
+PLEDGE_FIELDS = (
+    "email",
+    "contributors_count",
+    "amount",
+    "is_monthly",
+    "campaign_total",
+    "message",
+    "end_month",
+    "end_year",
+)
+
+
+def _project_pledge(item: dict) -> dict:
+    return {field: item[field] for field in PLEDGE_FIELDS if field in item}
+
+
 def handler(event, context):
     params = event.get("queryStringParameters") or {}
     email = params.get("email")
@@ -39,7 +58,7 @@ def handler(event, context):
 
     result = table.query(
         IndexName="EmailIndex",
-        KeyConditionExpression=Key("email").eq(email),
+        KeyConditionExpression=Key("email").eq(email.strip().lower()),
         Limit=1,
     )
 
@@ -48,4 +67,4 @@ def handler(event, context):
     if not items:
         return response(404, {"message": "not found"})
 
-    return response(200, items[0])
+    return response(200, _project_pledge(items[0]))

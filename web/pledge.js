@@ -35,7 +35,6 @@ function getRemainingMonths(endMonth, endYear) {
 
 function getFormValues() {
   return {
-    name: $('name').value.trim(),
     email: $('email').value.trim(),
     contributors_count: parsePositiveNumber($('contributors_count').value),
     amount: parsePositiveNumber($('amount').value),
@@ -212,7 +211,6 @@ async function loadStats() {
 }
 
 function populateExistingSummary(data) {
-  $('existingName').textContent = data.name || '-';
   $('existingEmail').textContent = data.email || '-';
   $('existingContributors').textContent = Number(data.contributors_count || 0);
   $('existingAmount').textContent = formatCurrency(Number(data.amount || 0));
@@ -230,7 +228,6 @@ function populateExistingSummary(data) {
 }
 
 function populateForm(values) {
-  $('name').value = values.name || '';
   $('email').value = values.email || '';
   $('contributors_count').value = Number(values.contributors_count || 1);
   $('amount').value = Number(values.amount || 0) || '';
@@ -255,7 +252,6 @@ function enterCreateMode(email) {
   $('email').readOnly = false;
 
   populateForm({
-    name: '',
     email,
     contributors_count: 1,
     amount: '',
@@ -330,10 +326,6 @@ async function handleLookup() {
 }
 
 function validateForm(values) {
-  if (!values.name) {
-    return 'Please enter your name.';
-  }
-
   if (!values.email) {
     return 'Please enter your email.';
   }
@@ -365,7 +357,6 @@ function validateForm(values) {
 
 function buildPayload(values) {
   const payload = {
-    name: values.name,
     email: values.email,
     contributors_count: values.contributors_count,
     amount: values.amount,

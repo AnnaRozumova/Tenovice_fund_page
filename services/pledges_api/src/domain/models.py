@@ -7,7 +7,6 @@ from typing import Optional
 @dataclass
 class Pledge:
     pledge_id: str
-    name: str
     email: str
     contributors_count: int
     amount: Decimal
@@ -23,7 +22,6 @@ class Pledge:
         """Convert to DynamoDB item format"""
         item = {
             "pledgeID": self.pledge_id,
-            "name": self.name,
             "email": self.email,
             "contributors_count": self.contributors_count,
             "amount": self.amount,
@@ -50,7 +48,6 @@ class Pledge:
         """Create Pledge from DynamoDB item"""
         return Pledge(
             pledge_id=item["pledgeID"],
-            name=item["name"],
             email=item["email"],
             contributors_count=int(item["contributors_count"]),
             amount=item["amount"],

@@ -48,7 +48,7 @@ AWS CDK (Python) describes & deploys all of the above.
 | GET | `/stats` | `get_stats.handler` | reads the `STATS` row (running totals) |
 | GET | `/pledges` | `list_pledges.handler` | `scan`; returns anonymous fields only |
 | POST | `/pledges` | `create_pledge.handler` | upsert by email; adjusts `STATS` |
-| GET | `/pledges/by-email` | `get_pledge_by_email.handler` | query `EmailIndex`; **returns the full record today (incl. `name`+`email`) — see "Planned change"** |
+| GET | `/pledges/by-email` | `get_pledge_by_email.handler` | query `EmailIndex` (case-insensitive); returns **only the caller's own pledge, projected to an allowlist** (no `pledgeID`/timestamps) |
 
 **Live dev API:** `https://tbaulwfk46.execute-api.eu-central-1.amazonaws.com` (region `eu-central-1`).
 It is **deployed and holds test data** — `GET /stats` →
@@ -65,8 +65,7 @@ Primary key `pledgeID` (String). GSI `EmailIndex` on `email` (projection ALL) fo
 
 **Pledge row** (`domain/models.py` → `Pledge`):
 - `pledgeID` — UUID
-- `name` — pledger name *(stored today; **being removed** — see "Planned change")*
-- `email` — lowercased
+- `email` — lowercased (the only identity field; never displayed, never on public endpoints)
 - `contributors_count` — how many people this one pledge represents (≥ 1)
 - `amount` — pledge amount in EUR (one-time amount, or per-month amount if monthly)
 - `is_monthly` — bool
@@ -102,19 +101,17 @@ Defined in `web/pledge.js` (live preview) **and** `services/pledges_api/src/hand
 response.py` exists but is **empty** — there is no shared util yet. Unifying one shared
 `response()`/`DecimalEncoder` is planned (see `dev_history.md`).
 
-## Planned change (next — privacy & data model)
+## Privacy & data model (Phase B — in progress)
 
-The data model is **about to change** for privacy; do not treat the current shape as final:
-- **Drop `name`** from the model, validation, handlers, and frontend (never stored, never displayed).
-- **Harden `/pledges/by-email`** to return only the caller's own pledge fields — today it returns the full
-  record, which leaks PII.
-- Keep `email` stored **as-is (no hashing)**, used only to recognize a returning pledger so they can edit
-  their own pledge.
-- Canonicalize stats on `contributors_count`; add a shared response util; add upper bounds on `amount`
-  and `contributors_count`.
+**Done (B1):** `name` is **dropped** everywhere — model, validation, handlers, frontend (form + summary +
+payload), fixtures. `/pledges/by-email` is **hardened**: it returns only the caller's own pledge projected
+to an explicit field allowlist (no `pledgeID`/timestamps) and matches email case-insensitively. `email` is
+stored **as-is (no hashing)**, used only to recognize a returning pledger so they can edit their own pledge.
 
-This is tracked in `dev_history.md`. The test data in the live table and the repo-root `*.json` fixtures
-will be reset as part of that change.
+**Still planned (B2, B3):** canonicalize stats on `contributors_count` (frontend still reads
+`pledgers_count` — see "Known mismatch"); give `create_pledge` the shared response util; add upper bounds on
+`amount` and `contributors_count`. Tracked in `dev_history.md`. The test data in the live table will be
+reset when the privacy/data-model phase deploys.
 
 ## Development commands
 

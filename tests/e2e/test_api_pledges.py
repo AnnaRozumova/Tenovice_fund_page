@@ -1,188 +1,157 @@
-"""End-to-end tests for the pledges API
+"""End-to-end tests for the pledges API.
 
-These tests run against a deployed API endpoint.
+These run against a *deployed* API and are skipped unless ``API_URL`` is set:
 
-Usage:
     export API_URL="https://your-api-id.execute-api.region.amazonaws.com"
     pytest tests/e2e/test_api_pledges.py -v
+
+They exercise the real 4-endpoint contract:
+    GET  /stats             -> {pledged_total, contributors_count, monthly_total}
+    GET  /pledges           -> list of anonymous pledge rows
+    POST /pledges           -> upsert by email (201 create / 200 update)
+    GET  /pledges/by-email  -> the caller's own pledge, projected fields only
+
+Note: creating pledges writes real rows into the target environment's table.
+Point ``API_URL`` at a disposable dev stage, not production.
 """
 import os
-import pytest
-import requests
 import uuid
 
+import pytest
+import requests
 
-# Get API URL from environment
 API_URL = os.environ.get("API_URL")
 
 if not API_URL:
     pytest.skip("API_URL environment variable not set", allow_module_level=True)
 
 
-class TestPledgesAPIEndToEnd:
-    """End-to-end tests for pledges API"""
+def _unique_email() -> str:
+    return f"e2e-{uuid.uuid4()}@test.com"
 
-    def test_stats_endpoint_accessible(self):
-        """Test that stats endpoint is accessible"""
+
+class TestStatsEndpoint:
+    def test_stats_accessible_and_shaped(self):
         response = requests.get(f"{API_URL}/stats")
 
         assert response.status_code == 200
         data = response.json()
         assert "pledged_total" in data
-        assert "pledgers_count" in data
+        assert "contributors_count" in data
         assert "monthly_total" in data
 
-    def test_create_and_get_pledge_flow(self):
-        """Test creating a pledge and then retrieving it"""
-        # Create a pledge
-        pledge_data = {
-            "name": f"E2E Test User {uuid.uuid4()}",
-            "email": f"e2e-{uuid.uuid4()}@test.com",
+    def test_cors_headers_present(self):
+        response = requests.get(f"{API_URL}/stats")
+        assert "access-control-allow-origin" in response.headers
+
+
+class TestListPledges:
+    def test_list_is_anonymous(self):
+        response = requests.get(f"{API_URL}/pledges")
+
+        assert response.status_code == 200
+        items = response.json()
+        assert isinstance(items, list)
+        # No pledge in the public list may expose identity fields.
+        for item in items:
+            assert "name" not in item
+            assert "email" not in item
+
+
+class TestUpsertAndLookupFlow:
+    def test_create_then_lookup_by_email(self):
+        email = _unique_email()
+        payload = {
+            "email": email,
+            "contributors_count": 1,
             "amount": 100,
-            "is_monthly": True,
-            "message": "E2E test pledge"
+            "is_monthly": False,
+            "message": "E2E create",
         }
 
-        create_response = requests.post(
-            f"{API_URL}/pledges",
-            json=pledge_data
-        )
+        create = requests.post(f"{API_URL}/pledges", json=payload)
+        assert create.status_code == 201
+        assert "pledge_id" in create.json()
 
-        assert create_response.status_code == 201
-        create_data = create_response.json()
-        assert "pledge_id" in create_data
+        lookup = requests.get(f"{API_URL}/pledges/by-email", params={"email": email})
+        assert lookup.status_code == 200
+        data = lookup.json()
+        assert data["email"] == email.lower()
+        assert data["amount"] == 100
+        assert data["is_monthly"] is False
+        # The hardened endpoint projects an allowlist; internals never leak.
+        assert "name" not in data
+        assert "pledgeID" not in data
+        assert "created_at" not in data
 
-        pledge_id = create_data["pledge_id"]
-
-        # Get the pledge
-        get_response = requests.get(f"{API_URL}/pledges/{pledge_id}")
-
-        assert get_response.status_code == 200
-        get_data = get_response.json()
-        assert get_data["pledge_id"] == pledge_id
-        assert get_data["name"] == pledge_data["name"]
-        assert get_data["email"] == pledge_data["email"].lower()
-        assert get_data["amount"] == pledge_data["amount"]
-        assert get_data["is_monthly"] == pledge_data["is_monthly"]
-
-    def test_create_update_and_get_pledge_flow(self):
-        """Test full CRUD flow: create, update, and get"""
-        # Create
-        create_data = {
-            "name": f"Update Test {uuid.uuid4()}",
-            "email": f"update-{uuid.uuid4()}@test.com",
+    def test_second_post_same_email_updates(self):
+        email = _unique_email()
+        base = {
+            "email": email,
+            "contributors_count": 1,
             "amount": 50,
             "is_monthly": False,
         }
 
-        create_response = requests.post(f"{API_URL}/pledges", json=create_data)
-        assert create_response.status_code == 201
-        pledge_id = create_response.json()["pledge_id"]
+        first = requests.post(f"{API_URL}/pledges", json=base)
+        assert first.status_code == 201
 
-        # Update
-        update_data = {
-            "amount": 75,
-            "is_monthly": True,
-            "message": "Updated in E2E test"
-        }
+        second = requests.post(f"{API_URL}/pledges", json={**base, "amount": 80})
+        assert second.status_code == 200
 
-        update_response = requests.put(
-            f"{API_URL}/pledges/{pledge_id}",
-            json=update_data
+        lookup = requests.get(f"{API_URL}/pledges/by-email", params={"email": email})
+        assert lookup.status_code == 200
+        assert lookup.json()["amount"] == 80
+
+    def test_lookup_unknown_email_returns_404(self):
+        lookup = requests.get(
+            f"{API_URL}/pledges/by-email", params={"email": _unique_email()}
         )
+        assert lookup.status_code == 404
 
-        assert update_response.status_code == 200
-        update_result = update_response.json()
-        assert update_result["amount"] == 75
-        assert update_result["is_monthly"] is True
-        assert update_result["message"] == "Updated in E2E test"
+    def test_lookup_without_email_returns_400(self):
+        lookup = requests.get(f"{API_URL}/pledges/by-email")
+        assert lookup.status_code == 400
 
-        # Get and verify
-        get_response = requests.get(f"{API_URL}/pledges/{pledge_id}")
-        assert get_response.status_code == 200
-        final_data = get_response.json()
-        assert final_data["amount"] == 75
-        assert final_data["is_monthly"] is True
 
-    def test_get_nonexistent_pledge(self):
-        """Test getting a pledge that doesn't exist"""
-        fake_id = str(uuid.uuid4())
-        response = requests.get(f"{API_URL}/pledges/{fake_id}")
-
-        assert response.status_code == 404
-        data = response.json()
-        assert "error" in data
-
-    def test_create_pledge_with_invalid_data(self):
-        """Test creating a pledge with invalid data"""
-        invalid_data = {
-            "name": "A",  # Too short
+class TestValidation:
+    def test_invalid_email_rejected(self):
+        payload = {
             "email": "not-an-email",
-            "amount": 0,  # Too low
-            "is_monthly": True,
-        }
-
-        response = requests.post(f"{API_URL}/pledges", json=invalid_data)
-
-        assert response.status_code == 400
-        data = response.json()
-        assert "error" in data
-
-    def test_cors_headers_present(self):
-        """Test that CORS headers are present"""
-        response = requests.get(f"{API_URL}/stats")
-
-        # Check for CORS headers
-        assert "access-control-allow-origin" in response.headers
-
-    def test_update_nonexistent_pledge(self):
-        """Test updating a pledge that doesn't exist"""
-        fake_id = str(uuid.uuid4())
-        update_data = {"amount": 100}
-
-        response = requests.put(
-            f"{API_URL}/pledges/{fake_id}",
-            json=update_data
-        )
-
-        assert response.status_code == 404
-
-    def test_create_pledge_without_optional_fields(self):
-        """Test creating a pledge without optional message field"""
-        pledge_data = {
-            "name": f"Minimal Test {uuid.uuid4()}",
-            "email": f"minimal-{uuid.uuid4()}@test.com",
-            "amount": 25,
-            "is_monthly": False,
-        }
-
-        response = requests.post(f"{API_URL}/pledges", json=pledge_data)
-
-        assert response.status_code == 201
-        data = response.json()
-        assert "pledge_id" in data
-
-    def test_stats_updated_after_pledge_creation(self):
-        """Test that stats are updated after creating a pledge"""
-        # Get initial stats
-        initial_response = requests.get(f"{API_URL}/stats")
-        initial_stats = initial_response.json()
-        initial_count = initial_stats["pledgers_count"]
-
-        # Create a pledge
-        pledge_data = {
-            "name": f"Stats Test {uuid.uuid4()}",
-            "email": f"stats-{uuid.uuid4()}@test.com",
+            "contributors_count": 1,
             "amount": 100,
             "is_monthly": False,
         }
+        response = requests.post(f"{API_URL}/pledges", json=payload)
+        assert response.status_code == 400
+        assert "error" in response.json()
 
-        create_response = requests.post(f"{API_URL}/pledges", json=pledge_data)
-        assert create_response.status_code == 201
+    def test_non_positive_amount_rejected(self):
+        payload = {
+            "email": _unique_email(),
+            "contributors_count": 1,
+            "amount": 0,
+            "is_monthly": False,
+        }
+        response = requests.post(f"{API_URL}/pledges", json=payload)
+        assert response.status_code == 400
+        assert "error" in response.json()
 
-        # Get updated stats
-        updated_response = requests.get(f"{API_URL}/stats")
-        updated_stats = updated_response.json()
 
-        # Verify stats were updated
-        assert updated_stats["pledgers_count"] >= initial_count + 1
+class TestStatsReflectPledges:
+    def test_stats_increase_after_create(self):
+        before = requests.get(f"{API_URL}/stats").json()
+        before_contributors = before["contributors_count"]
+        before_total = before["pledged_total"]
+
+        payload = {
+            "email": _unique_email(),
+            "contributors_count": 2,
+            "amount": 100,
+            "is_monthly": False,
+        }
+        assert requests.post(f"{API_URL}/pledges", json=payload).status_code == 201
+
+        after = requests.get(f"{API_URL}/stats").json()
+        assert after["contributors_count"] >= before_contributors + 2
+        assert after["pledged_total"] >= before_total + 100

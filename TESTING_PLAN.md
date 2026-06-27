@@ -151,10 +151,12 @@ curl -X GET "$API_URL/stats"
 curl -X POST "$API_URL/pledges" \
   -H "Content-Type: application/json" \
   -d '{
-    "name": "John Doe",
     "email": "john@example.com",
+    "contributors_count": 1,
     "amount": 100,
     "is_monthly": true,
+    "end_month": 12,
+    "end_year": 2030,
     "message": "Great cause!"
   }'
 
