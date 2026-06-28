@@ -1,20 +1,21 @@
-"""Integration tests for the get-pledge-by-email handler.
+"""Integration tests for ``GET /pledges/by-email`` (Phase B1), via the FastAPI app.
 
-Added in Phase B (B1): the endpoint must return only the caller's own pledge,
-projected to an explicit allowlist of fields — never the raw DynamoDB item, and
-never another person's record.
+The endpoint must return only the caller's own pledge, projected to an explicit
+allowlist of fields — never the raw DynamoDB item, never another person's record,
+and (H1) never the email echoed back.
 """
-import importlib
-import json
 import os
 
 import boto3
 import pytest
+from fastapi.testclient import TestClient
 from moto import mock_aws
+
+from app import app
 
 
 def _create_table(dynamodb):
-    table = dynamodb.create_table(
+    return dynamodb.create_table(
         TableName="test-pledges-table",
         KeySchema=[{"AttributeName": "pledgeID", "KeyType": "HASH"}],
         AttributeDefinitions=[
@@ -30,21 +31,15 @@ def _create_table(dynamodb):
         ],
         BillingMode="PAY_PER_REQUEST",
     )
-    return table
 
 
 @pytest.fixture(scope="function")
-def handler_and_table():
+def client_and_table():
     with mock_aws():
         dynamodb = boto3.resource("dynamodb", region_name="us-east-1")
         table = _create_table(dynamodb)
         os.environ["PLEDGES_TABLE_NAME"] = "test-pledges-table"
-
-        from handlers import get_pledge_by_email
-
-        importlib.reload(get_pledge_by_email)
-
-        yield get_pledge_by_email.handler, table
+        yield TestClient(app), table
 
 
 def _seed_pledge(table, email):
@@ -63,18 +58,18 @@ def _seed_pledge(table, email):
     )
 
 
-def _call(handler, email):
-    return handler({"queryStringParameters": {"email": email}}, None)
+def _get(client, email):
+    return client.get("/pledges/by-email", params={"email": email})
 
 
 class TestGetPledgeByEmail:
-    def test_returns_only_allowlisted_fields(self, handler_and_table):
-        handler, table = handler_and_table
+    def test_returns_only_allowlisted_fields(self, client_and_table):
+        client, table = client_and_table
         _seed_pledge(table, "owner@example.com")
 
-        response = _call(handler, "owner@example.com")
-        assert response["statusCode"] == 200
-        body = json.loads(response["body"])
+        resp = _get(client, "owner@example.com")
+        assert resp.status_code == 200
+        body = resp.json()
 
         # The caller's own pledge fields are present...
         assert body["amount"] == 100
@@ -91,22 +86,20 @@ class TestGetPledgeByEmail:
         # that still stores it must not surface it (dropped from the allowlist).
         assert "contributors_count" not in body
 
-    def test_lookup_is_case_insensitive(self, handler_and_table):
-        handler, table = handler_and_table
+    def test_lookup_is_case_insensitive(self, client_and_table):
+        client, table = client_and_table
         _seed_pledge(table, "owner@example.com")
 
-        response = _call(handler, "Owner@Example.COM")
-        assert response["statusCode"] == 200
-        # The pledge is found regardless of case (email is matched lowercased); the
-        # email isn't echoed (H1), so assert on a returned field instead.
-        assert json.loads(response["body"])["amount"] == 100
+        resp = _get(client, "Owner@Example.COM")
+        assert resp.status_code == 200
+        # Found regardless of case (email matched lowercased); the email isn't echoed
+        # (H1), so assert on a returned field instead.
+        assert resp.json()["amount"] == 100
 
-    def test_unknown_email_returns_404(self, handler_and_table):
-        handler, _ = handler_and_table
-        response = _call(handler, "nobody@example.com")
-        assert response["statusCode"] == 404
+    def test_unknown_email_returns_404(self, client_and_table):
+        client, _ = client_and_table
+        assert _get(client, "nobody@example.com").status_code == 404
 
-    def test_missing_email_returns_400(self, handler_and_table):
-        handler, _ = handler_and_table
-        response = handler({"queryStringParameters": None}, None)
-        assert response["statusCode"] == 400
+    def test_missing_email_returns_400(self, client_and_table):
+        client, _ = client_and_table
+        assert client.get("/pledges/by-email").status_code == 400

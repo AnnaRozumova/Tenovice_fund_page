@@ -1,61 +1,124 @@
-"""Upsert pledge handler (create or update by email)"""
+"""Pledge endpoints: list, upsert by email, and look up your own pledge.
+
+- ``GET /pledges`` — anonymous public list (no identity fields).
+- ``POST /pledges`` — create or update a pledge keyed by email; a returning pledger
+  edits their own record. B4: one pledge = one supporter (the ``STATS`` tally, still
+  stored under ``contributors_count``, is +1 on create / +0 on edit).
+- ``GET /pledges/by-email`` — the caller's own pledge, projected to an explicit
+  allowlist (never the raw item; the email is not echoed back — B1/H1).
+"""
 import json
-import os
 import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
 
-import boto3
+from boto3.dynamodb.conditions import Key
 from botocore.exceptions import ClientError
+from fastapi import APIRouter, Request
 
+from db import get_table
 from domain.models import Pledge
 from domain.pledge_math import calculate_pledge_values
 from domain.validation import validate_pledge_input
-from utils.response import response
+from utils.http import json_response
 
-dynamodb = boto3.resource("dynamodb")
+router = APIRouter()
 
 
-def handler(event, context):
-    table_name = os.environ["PLEDGES_TABLE_NAME"]
-    table = dynamodb.Table(table_name)
+# Fields the caller may see about their own pledge. The raw DynamoDB item is never
+# returned wholesale — we project an explicit allowlist so internal bookkeeping
+# fields can't leak. The email is intentionally NOT echoed: the caller supplied it
+# in the lookup query, so returning it discloses nothing and keeps it minimal (H1).
+PLEDGE_FIELDS = (
+    "amount",
+    "is_monthly",
+    "campaign_total",
+    "message",
+    "end_month",
+    "end_year",
+)
 
+
+@router.get("/pledges")
+def list_pledges():
+    table = get_table()
     try:
-        body = json.loads(event.get("body", "{}"))
+        items = table.scan().get("Items", [])
+        pledges = [
+            {
+                "amount": item.get("amount", Decimal("0")),
+                "is_monthly": item.get("is_monthly", False),
+                "campaign_total": item.get("campaign_total", Decimal("0")),
+                "end_month": item.get("end_month"),
+                "end_year": item.get("end_year"),
+                "created_at": item.get("created_at"),
+                "message": item.get("message"),
+            }
+            for item in items
+            if item.get("pledgeID") != "STATS"
+        ]
+        pledges.sort(key=lambda pledge: pledge.get("created_at") or "", reverse=True)
+        return json_response(200, {"pledges": pledges})
+    except ClientError:
+        return json_response(500, {"error": "Failed to list pledges"})
+
+
+@router.get("/pledges/by-email")
+def get_pledge_by_email(email: str | None = None):
+    if not email:
+        return json_response(400, {"message": "email query parameter is required"})
+
+    table = get_table()
+    try:
+        result = table.query(
+            IndexName="EmailIndex",
+            KeyConditionExpression=Key("email").eq(email.strip().lower()),
+            Limit=1,
+        )
+    except ClientError:
+        return json_response(500, {"error": "Failed to look up pledge"})
+
+    items = result.get("Items", [])
+    if not items:
+        return json_response(404, {"message": "not found"})
+
+    item = items[0]
+    projected = {field: item[field] for field in PLEDGE_FIELDS if field in item}
+    return json_response(200, projected)
+
+
+@router.post("/pledges")
+async def create_or_update_pledge(request: Request):
+    try:
+        body = json.loads(await request.body() or b"{}")
     except json.JSONDecodeError:
-        return response(400, {"error": "Invalid JSON in request body"})
+        return json_response(400, {"error": "Invalid JSON in request body"})
 
     try:
         validated = validate_pledge_input(body)
     except ValueError as e:
-        return response(400, {"error": str(e)})
+        return json_response(400, {"error": str(e)})
 
-    email = validated["email"]
-
+    table = get_table()
     try:
-        existing_pledge = _find_pledge_by_email(table, email)
-
+        existing_pledge = _find_pledge_by_email(table, validated["email"])
         if existing_pledge:
             return _update_existing_pledge(table, existing_pledge, validated)
-
         return _create_new_pledge(table, validated)
-
     except ClientError:
-        return response(500, {"error": "Failed to process pledge"})
+        return json_response(500, {"error": "Failed to process pledge"})
 
 
 def _find_pledge_by_email(table, email: str):
-    response = table.query(
+    # Same query style as get_pledge_by_email above (the typed condition builder).
+    # ``email`` is already normalized (validate_pledge_input lowercases it).
+    result = table.query(
         IndexName="EmailIndex",
-        KeyConditionExpression="email = :email",
-        ExpressionAttributeValues={":email": email},
+        KeyConditionExpression=Key("email").eq(email),
     )
-    items = response.get("Items", [])
-    items = [item for item in items if item.get("pledgeID") != "STATS"]
-
+    items = [item for item in result.get("Items", []) if item.get("pledgeID") != "STATS"]
     if items:
         return Pledge.from_dynamodb_item(items[0])
-
     return None
 
 
@@ -98,7 +161,7 @@ def _create_new_pledge(table, data: dict):
         monthly_total_delta=monthly_value,
     )
 
-    return response(
+    return json_response(
         201,
         {
             "pledge_id": pledge.pledge_id,
@@ -179,7 +242,7 @@ def _update_existing_pledge(table, existing_pledge: Pledge, data: dict):
         monthly_total_delta=monthly_total_delta,
     )
 
-    return response(
+    return json_response(
         200,
         {
             "pledge_id": existing_pledge.pledge_id,

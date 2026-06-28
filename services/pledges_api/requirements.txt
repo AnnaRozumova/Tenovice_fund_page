@@ -1,0 +1,5 @@
+# Runtime dependencies for the single pledges-API Lambda (FastAPI + Mangum).
+# boto3 is provided by the Lambda runtime, so it is not listed here. CDK bundles
+# these into the function asset at deploy (see cdk/src/constructs/lambdas.py).
+fastapi>=0.115,<0.116
+mangum>=0.18,<0.20

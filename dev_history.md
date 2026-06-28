@@ -5,6 +5,60 @@ and how it was verified. Companion to `CLAUDE.md` (developer quick-start) and `d
 
 ---
 
+## 2026-06-28 — R1: backend re-architecture — 7 Lambdas → one FastAPI app (Mangum) behind a proxy route
+
+**Why:** the backend was 7 per-endpoint Lambdas, each its own file re-creating a DynamoDB resource and
+re-defining the response/encoder — duplicated boilerplate that had to be changed in every file. R1 collapses
+them into **one Lambda running a FastAPI app via Mangum, behind a single API Gateway `ANY /{proxy+}` route**;
+shared concerns are imported once. Adding/changing an endpoint becomes a code change in FastAPI, no
+CDK/API-GW edit. **Behavior and the JSON contracts are unchanged** — this is a re-shape, not a rewrite (the
+framework-agnostic domain/validation/pledge-math moved across untouched).
+
+**What changed (`services/pledges_api/src/`):**
+- **New `app.py`** — `FastAPI(redirect_slashes=False)` including four routers; `handler = Mangum(app, lifespan="off")`
+  is the Lambda entrypoint.
+- **New `api/` package** — routes grouped by resource: `stats.py` (`GET /stats`), `pledges.py`
+  (`GET /pledges`, `POST /pledges`, `GET /pledges/by-email`), `config.py` (`GET`/`POST /config`),
+  `calculate.py` (`POST /calculate`). Each route calls the shared domain logic and returns via a shared
+  `json_response`.
+- **New shared modules:** `db.py` (`get_table()` — one cached boto3 resource, replacing the per-file
+  `boto3.resource(...)`), `utils/http.py` (`DecimalJSONResponse` / `json_response`, reusing the existing
+  `DecimalEncoder`), `config_defaults.py` (the `DEFAULT_*` campaign numbers, moved out of the old
+  `get_config` handler so the config + calculate routes share them).
+- **Removed** the whole `handlers/` package (the 7 `handler(event, context)` modules). The old
+  `utils/response.py` `response()` Lambda-proxy envelope is gone too (Mangum builds the envelope now);
+  only `DecimalEncoder` remains there, reused by the FastAPI response.
+- **Runtime deps:** new `requirements.txt` (fastapi, mangum — boto3 stays runtime-provided); `requirements-test.txt`
+  adds fastapi/mangum/httpx (tests import the app and drive it via `TestClient`).
+
+**CDK (`cdk/`):**
+- `constructs/lambdas.py` — the 7 `_lambda.Function`s become **one** (`...-dev-api`, handler `app.handler`),
+  whose asset is **Docker-bundled** (`pip install -r requirements.txt -t /asset-output && cp -r src/. /asset-output`)
+  so FastAPI/Mangum ship with the code. One `grant_read_write_data` (the single function serves reads, the
+  simulator, and the admin write). `LambdaHandlers` dataclass removed.
+- `constructs/apigw.py` — the 7 routes become **one** `ANY /{proxy+}` → `HttpLambdaIntegration` to the function;
+  CORS preflight kept at the gateway. `stack.py` passes `api_function=` instead of `handlers=`.
+
+**Tests:** the 6 integration suites were rewritten from `handler(event, context)` calls to FastAPI's
+**`TestClient(app)`** (real routing through the whole app). Added **`test_proxy_event.py`** — feeds a real
+API Gateway HTTP API v2 proxy event through `app.handler` (Mangum), locking that the `ANY /{proxy+}` path is
+reconstructed so the routes match (the one thing `TestClient` can't exercise). Unit tests unchanged except
+`test_response.py` (trimmed to `DecimalEncoder`, since `response()` is gone).
+
+**Verification:** quality gate green — `ruff` clean, **87 passed** (was 86: +3 proxy-event, −2 removed
+envelope tests). CDK structure confirmed by `cdk synth`: **1 application Lambda** (`fundraising-calculator-dev-api`,
+`app.handler`) + **1 route `ANY /{proxy+}`** (down from 7 + 7), env `PLEDGES_TABLE_NAME` + `ADMIN_SECRET`.
+The Docker bundle/deploy runs at deploy time (Docker was off locally; structure verified with bundling skipped).
+`/code-review` (high) findings folded in: cached the boto3 resource, wrapped `by-email` in ClientError→500,
+unified the email-query style, `redirect_slashes=False` + `lifespan="off"`, removed the dead `response()`.
+Net diff ≈ **−780 lines**. **Runtime stays Python 3.11** (the 3.14 bump is the next step, R2). **Not deployed.**
+
+**Watch item (D9):** the single `Mangum(app)` has no `api_gateway_base_path`. Fine on the `$default` stage
+(no path prefix); when the custom domain / CloudFront lands (G1/D9), confirm the base path is stripped so the
+FastAPI routes still match.
+
+---
+
 ## 2026-06-26 — S3 website bucket name is account-unique (multi-account dev/prod)
 
 **Why:** S3 bucket names are **globally unique across all of AWS**. The name was

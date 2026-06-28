@@ -1,11 +1,9 @@
-"""Read-only campaign simulator: ``POST /calculate``.
+"""``POST /calculate`` — read-only what-if simulator (writes nothing, D15).
 
-Computes a "what-if" — how a group's intended giving would move the campaign
-total toward the goal — and **writes nothing**. The impact formula is the shared
-domain math (decision D8), the same code the save path (``create_pledge``) uses,
-so the calculator preview and a saved pledge can never disagree. The projection
-reads the live ``STATS`` total and the ``CONFIG`` goal so the frontend only
-displays the result (no JS math, D15).
+Computes how a group's intended giving would move the campaign total toward the
+goal, using the shared pledge math (D8) — the same code the save path uses, so the
+preview and a saved pledge can never disagree. Reads the ``STATS`` total and the
+``CONFIG`` goal for the projection.
 
 Input  ``{ people, amount, is_monthly, end_month?, end_year? }``
 Output ``{ people, amount, is_monthly, remaining_months, total_impact,
@@ -14,33 +12,31 @@ Output ``{ people, amount, is_monthly, remaining_months, total_impact,
 where ``total_impact = people * amount * (remaining_months if monthly else 1)``.
 """
 import json
-import os
 from decimal import Decimal
 
-import boto3
 from botocore.exceptions import ClientError
+from fastapi import APIRouter, Request
 
+from config_defaults import DEFAULT_FUNDRAISING_GOAL
+from db import get_table
 from domain.pledge_math import calculate_pledge_values, calculate_remaining_months
 from domain.validation import validate_calculate_input
-from handlers.get_config import DEFAULT_FUNDRAISING_GOAL
-from utils.response import response
+from utils.http import json_response
 
-dynamodb = boto3.resource("dynamodb")
+router = APIRouter()
 
 
-def handler(event, context):
-    table_name = os.environ["PLEDGES_TABLE_NAME"]
-    table = dynamodb.Table(table_name)
-
+@router.post("/calculate")
+async def calculate(request: Request):
     try:
-        body = json.loads(event.get("body", "{}"))
+        body = json.loads(await request.body() or b"{}")
     except json.JSONDecodeError:
-        return response(400, {"error": "Invalid JSON in request body"})
+        return json_response(400, {"error": "Invalid JSON in request body"})
 
     try:
         validated = validate_calculate_input(body)
     except ValueError as e:
-        return response(400, {"error": str(e)})
+        return json_response(400, {"error": str(e)})
 
     people = validated["people"]
     amount = validated["amount"]
@@ -63,15 +59,15 @@ def handler(event, context):
     )
 
     try:
-        current_total, goal = _read_baseline(table)
+        current_total, goal = _read_baseline()
     except ClientError:
-        return response(500, {"error": "Failed to read campaign totals"})
+        return json_response(500, {"error": "Failed to read campaign totals"})
 
     projected_total = current_total + total_impact
     baseline_pct = _progress_pct(current_total, goal)
     projected_pct = _progress_pct(projected_total, goal)
 
-    return response(
+    return json_response(
         200,
         {
             "people": people,
@@ -90,13 +86,14 @@ def handler(event, context):
     )
 
 
-def _read_baseline(table) -> tuple[Decimal, Decimal]:
+def _read_baseline() -> tuple[Decimal, Decimal]:
     """Current pledged total (STATS) and fundraising goal (CONFIG).
 
     Both rows may be absent before the first deploy/seed (Phase F); fall back to 0
-    and the same documented goal default ``get_config`` serves, so the simulator
+    and the same documented goal default the config route serves, so the simulator
     stays consistent with the rest of the site.
     """
+    table = get_table()
     stats = table.get_item(Key={"pledgeID": "STATS"}).get("Item") or {}
     current_total = stats.get("pledged_total", Decimal("0"))
 
