@@ -5,6 +5,24 @@ and how it was verified. Companion to `CLAUDE.md` (developer quick-start) and `d
 
 ---
 
+## 2026-06-29 — Fix: exclude the CONFIG sentinel row from `GET /pledges`
+
+**Why:** the public anonymous list (`list_pledges`) filtered out the `STATS` sentinel row but **not**
+`CONFIG` (added later, in C1). So once a `CONFIG` row exists, the public list returned a phantom
+zero-amount pledge (all-null fields) for it. Found during R3 local testing.
+
+**What changed:**
+- `services/pledges_api/src/api/pledges.py` — the list comprehension guard is now
+  `if item.get("pledgeID") not in ("STATS", "CONFIG")` (was `!= "STATS"`); added a comment so the
+  sentinel exclusion isn't dropped again.
+- `services/pledges_api/tests/integration/test_list_pledges.py` (new) — seeds STATS + CONFIG and asserts
+  `GET /pledges` returns an empty list (no phantom row), plus a real-pledge case proving the pledge is
+  listed while the sentinels (and the email / pledgeID) are not.
+
+**Verification:** quality gate green — ruff clean, **89 passed** (was 87; +2 new). **Not deployed.**
+
+---
+
 ## 2026-06-29 — CI/CD: GitHub Actions pipeline (CI gate + stage-aware deploy, WAF prod-only)
 
 **Why:** add a GitHub Actions pipeline (Ondra). CI runs the quality gate on every PR; CD deploys the CDK

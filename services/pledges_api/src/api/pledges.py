@@ -44,6 +44,8 @@ def list_pledges():
     table = get_table()
     try:
         items = table.scan().get("Items", [])
+        # Exclude the sentinel rows (STATS totals, CONFIG settings) — they are not
+        # pledges; without this they leak into the public list as phantom rows.
         pledges = [
             {
                 "amount": item.get("amount", Decimal("0")),
@@ -55,7 +57,7 @@ def list_pledges():
                 "message": item.get("message"),
             }
             for item in items
-            if item.get("pledgeID") != "STATS"
+            if item.get("pledgeID") not in ("STATS", "CONFIG")
         ]
         pledges.sort(key=lambda pledge: pledge.get("created_at") or "", reverse=True)
         return json_response(200, {"pledges": pledges})
