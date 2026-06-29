@@ -1,25 +1,20 @@
-"""Docstring"""
+"""The single API Lambda: one FastAPI app (via Mangum) behind an API-GW proxy.
+
+Replaces the former 7 per-endpoint Lambdas (decision D19). The function bundles its
+runtime deps (FastAPI + Mangum, from ``services/pledges_api/requirements.txt``) and
+the source (``src/``) into one asset via Docker; the entrypoint is ``app.handler``
+(the Mangum adapter). One function serves every route, so per-route authorization is
+done in-app (the admin secret) and, once added, by the Cognito authorizer on the
+proxy route (D18).
+"""
 import os
-from dataclasses import dataclass
-from typing import Optional
 
 from constructs import Construct
-from aws_cdk import Duration
+from aws_cdk import BundlingOptions, Duration
 from aws_cdk import aws_lambda as _lambda
 from aws_cdk import aws_dynamodb as dynamodb
 
 from .config import AppConfig
-
-
-@dataclass(frozen=True)
-class LambdaHandlers:
-    get_stats: _lambda.Function
-    create_pledge: Optional[_lambda.Function] = None
-    list_pledges: Optional[_lambda.Function] = None
-    get_pledge_by_email: Optional[_lambda.Function] = None
-    get_config: Optional[_lambda.Function] = None
-    update_config: Optional[_lambda.Function] = None
-    calculate: Optional[_lambda.Function] = None
 
 
 class LambdasConstruct(Construct):
@@ -33,123 +28,38 @@ class LambdasConstruct(Construct):
     ) -> None:
         super().__init__(scope, construct_id)
 
-        get_stats = _lambda.Function(
+        self.api_function = _lambda.Function(
             self,
-            "GetStatsFn",
-            function_name=f"{config.project_name}-{config.stage}-get-stats",
+            "ApiFn",
+            function_name=f"{config.project_name}-{config.stage}-api",
             runtime=_lambda.Runtime.PYTHON_3_11,
-            handler="handlers.get_stats.handler",
-            code=_lambda.Code.from_asset("../services/pledges_api/src"),
-            timeout=Duration.seconds(10),
+            handler="app.handler",
+            # Bundle runtime deps + source into one asset. pip installs FastAPI/Mangum
+            # into /asset-output, then the source is copied alongside them, so the
+            # Lambda root holds `app.py` (handler `app.handler`) + the packages.
+            code=_lambda.Code.from_asset(
+                "../services/pledges_api",
+                bundling=BundlingOptions(
+                    image=_lambda.Runtime.PYTHON_3_11.bundling_image,
+                    command=[
+                        "bash",
+                        "-c",
+                        "pip install -r requirements.txt -t /asset-output "
+                        "&& cp -r src/. /asset-output",
+                    ],
+                ),
+            ),
+            timeout=Duration.seconds(15),
             environment={
                 "PLEDGES_TABLE_NAME": pledges_table.table_name,
-            },
-        )
-
-        pledges_table.grant_read_data(get_stats)
-
-        create_pledge = _lambda.Function(
-            self,
-            "CreatePledgeFn",
-            function_name=f"{config.project_name}-{config.stage}-create-pledge",
-            runtime=_lambda.Runtime.PYTHON_3_11,
-            handler="handlers.create_pledge.handler",
-            code=_lambda.Code.from_asset("../services/pledges_api/src"),
-            timeout=Duration.seconds(10),
-            environment={
-                "PLEDGES_TABLE_NAME": pledges_table.table_name,
-            },
-        )
-
-        pledges_table.grant_read_write_data(create_pledge)
-
-        list_pledges = _lambda.Function(
-            self,
-            "ListPledgesFn",
-            function_name=f"{config.project_name}-{config.stage}-list-pledges",
-            runtime=_lambda.Runtime.PYTHON_3_11,
-            handler="handlers.list_pledges.handler",
-            code=_lambda.Code.from_asset("../services/pledges_api/src"),
-            timeout=Duration.seconds(10),
-            environment={
-                "PLEDGES_TABLE_NAME": pledges_table.table_name,
-            },
-        )
-
-        pledges_table.grant_read_data(list_pledges)
-
-        get_pledge_by_email = _lambda.Function(
-            self,
-            "GetPledgeByEmailFn",
-            function_name=f"{config.project_name}-{config.stage}-get-pledge-by-email",
-            runtime=_lambda.Runtime.PYTHON_3_11,
-            handler="handlers.get_pledge_by_email.handler",
-            code=_lambda.Code.from_asset("../services/pledges_api/src"),
-            timeout=Duration.seconds(10),
-            environment={
-                "PLEDGES_TABLE_NAME": pledges_table.table_name,
-            },
-        )
-
-        pledges_table.grant_read_data(get_pledge_by_email)
-
-        get_config = _lambda.Function(
-            self,
-            "GetConfigFn",
-            function_name=f"{config.project_name}-{config.stage}-get-config",
-            runtime=_lambda.Runtime.PYTHON_3_11,
-            handler="handlers.get_config.handler",
-            code=_lambda.Code.from_asset("../services/pledges_api/src"),
-            timeout=Duration.seconds(10),
-            environment={
-                "PLEDGES_TABLE_NAME": pledges_table.table_name,
-            },
-        )
-
-        pledges_table.grant_read_data(get_config)
-
-        # The admin secret is supplied at deploy time from the environment, which the
-        # CI/CD pipeline (D13) sources from SSM / Secrets Manager — it is never
-        # committed. Defaults to empty, in which case update_config fails closed.
-        update_config = _lambda.Function(
-            self,
-            "UpdateConfigFn",
-            function_name=f"{config.project_name}-{config.stage}-update-config",
-            runtime=_lambda.Runtime.PYTHON_3_11,
-            handler="handlers.update_config.handler",
-            code=_lambda.Code.from_asset("../services/pledges_api/src"),
-            timeout=Duration.seconds(10),
-            environment={
-                "PLEDGES_TABLE_NAME": pledges_table.table_name,
+                # Admin secret for POST /config — supplied at deploy from the
+                # environment (SSM / Secrets Manager via the pipeline, D13); never
+                # committed. Empty default → update_config fails closed.
                 "ADMIN_SECRET": os.environ.get("ADMIN_SECRET", ""),
             },
         )
 
-        pledges_table.grant_read_write_data(update_config)
-
-        # Read-only simulator (POST /calculate): computes a what-if impact and reads
-        # the STATS/CONFIG rows for the projection — it never writes (D15).
-        calculate = _lambda.Function(
-            self,
-            "CalculateFn",
-            function_name=f"{config.project_name}-{config.stage}-calculate",
-            runtime=_lambda.Runtime.PYTHON_3_11,
-            handler="handlers.calculate.handler",
-            code=_lambda.Code.from_asset("../services/pledges_api/src"),
-            timeout=Duration.seconds(10),
-            environment={
-                "PLEDGES_TABLE_NAME": pledges_table.table_name,
-            },
-        )
-
-        pledges_table.grant_read_data(calculate)
-
-        self.handlers = LambdaHandlers(
-            get_stats=get_stats,
-            create_pledge=create_pledge,
-            list_pledges=list_pledges,
-            get_pledge_by_email=get_pledge_by_email,
-            get_config=get_config,
-            update_config=update_config,
-            calculate=calculate,
-        )
+        # One Lambda serves public reads, the simulator, and the admin write, so it
+        # needs read-write on the table. Authorization is enforced in-app (and, once
+        # added, by the Cognito authorizer at the gateway, D18).
+        pledges_table.grant_read_write_data(self.api_function)

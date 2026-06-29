@@ -2,3 +2,8 @@ pytest>=7.4.0
 pytest-cov>=4.1.0
 moto>=5.0.0
 boto3>=1.28.0
+# The API runs on FastAPI behind Mangum (R1). Tests drive the app via FastAPI's
+# TestClient (which needs httpx), so the runtime deps are test deps too.
+fastapi>=0.115,<0.116
+mangum>=0.18,<0.20
+httpx>=0.27

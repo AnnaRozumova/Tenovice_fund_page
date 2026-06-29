@@ -18,7 +18,7 @@ class FundraisingCalculatorStack(Stack):
         lambdas = LambdasConstruct(
             self, "Lambdas", config=config, pledges_table=db.pledges_table
         )
-        api = ApiConstruct(self, "Api", config=config, handlers=lambdas.handlers)
+        api = ApiConstruct(self, "Api", config=config, api_function=lambdas.api_function)
         website = S3WebsiteConstruct(self, "Website", config=config)
 
         CfnOutput(self, "HttpApiUrl", value=api.http_api.api_endpoint)

@@ -20,16 +20,19 @@ Scale: < 1000 friends, infrequent visits → deliberately cheap, simple, low-ops
 Browser (static HTML/CSS/JS on S3)
    │  fetch() JSON over HTTPS
    ▼
-API Gateway (HTTP API)  ─►  Lambda (Python 3.11)  ─►  DynamoDB (one table)
+API Gateway (HTTP API, ANY /{proxy+})  ─►  one Lambda: FastAPI via Mangum (Python 3.11)  ─►  DynamoDB (one table)
    ▲
 AWS CDK (Python) describes & deploys all of the above.
 ```
 
 - **Frontend** `web/` — plain HTML/CSS/JS, **no build step** (no npm, no bundler). `<html lang="cs">`.
   Bilingual (CZ default + EN, DE-ready) via `web/i18n.js` — see "Internationalization" below.
-- **Backend** `services/pledges_api/src/` — framework-agnostic Python (NOT a web framework). Handlers are
-  plain Lambda `handler(event, context)` functions; domain logic kept framework-free on purpose.
-- **Infra** `cdk/` — one stack (`FundraisingCalculatorStack`) = DynamoDB + Lambdas + HTTP API + S3 site.
+- **Backend** `services/pledges_api/src/` — **one FastAPI app** run in a single Lambda via **Mangum**
+  (R1, decision D19). `app.py` mounts the routers in `api/`; shared concerns are imported once — `db.py`
+  (`get_table()`), `utils/http.py` (`json_response` / `DecimalJSONResponse`), `config_defaults.py`,
+  `domain/` (models, validation, pledge math — framework-agnostic). The Lambda entrypoint is `app.handler`
+  (the Mangum adapter).
+- **Infra** `cdk/` — one stack (`FundraisingCalculatorStack`) = DynamoDB + the API Lambda + HTTP API + S3 site.
   One `cdk deploy` provisions the whole app.
 
 ### CDK constructs (`cdk/src/`)
@@ -38,21 +41,27 @@ AWS CDK (Python) describes & deploys all of the above.
 - `constructs/config.py` — `AppConfig`, reads context from `cdk.json` (`stage`, `project_name`,
   `api_name`, `pledges_table_name`).
 - `constructs/dynamodb.py` — Pledges table (PK `pledgeID`) + `EmailIndex` GSI on `email` (projection ALL).
-- `constructs/lambdas.py` — the 7 Lambda functions (Python 3.11), code from `../services/pledges_api/src`.
-- `constructs/apigw.py` — HTTP API + CORS (`GET`/`POST`/`OPTIONS`, origins `*`) + the 7 routes.
+- `constructs/lambdas.py` — **the single API Lambda** (Python 3.11, handler `app.handler`); the asset is
+  Docker-bundled (`pip install -r requirements.txt -t /asset-output && cp -r src/. /asset-output`) so
+  FastAPI + Mangum ship with the code. Read-write on the table.
+- `constructs/apigw.py` — HTTP API + CORS (`GET`/`POST`/`OPTIONS`, origins `*`) + a **single** `ANY /{proxy+}`
+  route → the API Lambda (FastAPI does the per-endpoint routing).
 - `constructs/s3_website.py` — public S3 static-website bucket; deploys `../web` and outputs the URL.
 
-## API — 7 endpoints
+## API — 7 routes (one FastAPI app behind `ANY /{proxy+}`)
 
-| Method | Path | Handler (`services/pledges_api/src/handlers/`) | Notes |
-|--------|------|-----------------------------------------------|-------|
-| GET | `/stats` | `get_stats.handler` | reads the `STATS` row (running totals) |
-| GET | `/pledges` | `list_pledges.handler` | `scan`; returns anonymous fields only |
-| POST | `/pledges` | `create_pledge.handler` | upsert by email; adjusts `STATS` |
-| GET | `/pledges/by-email` | `get_pledge_by_email.handler` | query `EmailIndex` (case-insensitive); returns **only the caller's own pledge, projected to an allowlist** (no `pledgeID`/timestamps; the email isn't echoed back either — H1) |
-| GET | `/config` | `get_config.handler` | reads the `CONFIG` row (editable balance / goal / breakdown); documented defaults if the row is absent (C1) |
-| POST | `/config` | `update_config.handler` | **admin-only** write of the `CONFIG` row; shared-secret bearer token, constant-time compare, fails closed (C2) |
-| POST | `/calculate` | `calculate.handler` | **read-only** what-if simulator (D2a); computes impact + projection vs goal from the shared pledge math; reads `STATS`/`CONFIG`, writes nothing, no auth |
+Every route is a FastAPI path in `services/pledges_api/src/api/`; the contracts are unchanged from the old
+per-endpoint Lambdas.
+
+| Method | Path | Route (`services/pledges_api/src/api/`) | Notes |
+|--------|------|------------------------------------------|-------|
+| GET | `/stats` | `stats.py` | reads the `STATS` row (running totals) |
+| GET | `/pledges` | `pledges.py:list_pledges` | `scan`; returns anonymous fields only |
+| POST | `/pledges` | `pledges.py:create_or_update_pledge` | upsert by email; adjusts `STATS` |
+| GET | `/pledges/by-email` | `pledges.py:get_pledge_by_email` | query `EmailIndex` (case-insensitive); returns **only the caller's own pledge, projected to an allowlist** (no `pledgeID`/timestamps; the email isn't echoed back either — H1) |
+| GET | `/config` | `config.py:get_config` | reads the `CONFIG` row (editable balance / goal / breakdown); documented defaults if the row is absent (C1) |
+| POST | `/config` | `config.py:update_config` | **admin-only** write of the `CONFIG` row; shared-secret bearer token, constant-time compare, fails closed (C2) |
+| POST | `/calculate` | `calculate.py` | **read-only** what-if simulator (D2a); computes impact + projection vs goal from the shared pledge math; reads `STATS`/`CONFIG`, writes nothing, no auth |
 
 **Live dev API:** `https://tbaulwfk46.execute-api.eu-central-1.amazonaws.com` (region `eu-central-1`).
 It is **deployed and holds test data** — `GET /stats` →
@@ -103,8 +112,8 @@ Primary key `pledgeID` (String). GSI `EmailIndex` on `email` (projection ALL) fo
 
 The formula lives **once**, in `services/pledges_api/src/domain/pledge_math.py`
 (`calculate_pledge_values`, `calculate_remaining_months`), and is imported by both the save path
-(`handlers/create_pledge.py`) and the read-only simulator (`handlers/calculate.py`, `POST /calculate`) so
-the two can never drift (decision D8/D15). Moved out of `create_pledge.py` in D2a.
+(`api/pledges.py`) and the read-only simulator (`api/calculate.py`, `POST /calculate`) so the two can never
+drift (decision D8/D15). Consolidated into `domain/pledge_math.py` in D2a.
 - **One-time:** campaign impact = `amount`; monthly effect = 0.
 - **Monthly** (now until `end_month/end_year` inclusive):
   `remaining_months = (end_year - cur_year)*12 + (end_month - cur_month) + 1` (floored at 0);
@@ -118,10 +127,12 @@ the two can never drift (decision D8/D15). Moved out of `create_pledge.py` in D2
 
 ## JSON encoding note
 
-All handlers return JSON through the **shared** `services/pledges_api/src/utils/response.py`
-(`response(status, body)` + `DecimalEncoder`). The encoder serializes DynamoDB `Decimal` as `int` when
-whole, else `float` (EUR amounts and counts display as integers). Don't reintroduce per-handler encoders —
-unified in B2.
+Routes return JSON through the **shared** `json_response(status, body)` in
+`services/pledges_api/src/utils/http.py` — a `DecimalJSONResponse` that reuses `DecimalEncoder` from
+`utils/response.py`. The encoder serializes DynamoDB `Decimal` as `int` when whole, else `float` (EUR
+amounts and counts display as integers). One shared place — don't reintroduce per-route encoders.
+(Mangum builds the Lambda-proxy response envelope, so the old hand-rolled `response()` envelope was removed
+in R1; `utils/response.py` now holds only `DecimalEncoder`.)
 
 ## Privacy & data model (Phase B — complete)
 
@@ -253,12 +264,13 @@ tooling and stays English. **Parity gate:** every language must define the same 
   presented as **one** Tenovice direction (Ondra), so there is no per-direction breakdown UI — `CONFIG.BREAKDOWN`
   remains as the `/config` fallback but is not rendered.
 
-## Adding a new Lambda handler
-1. Create the handler in `services/pledges_api/src/handlers/`.
-2. Define the `_lambda.Function` in `LambdasConstruct` (`cdk/src/constructs/lambdas.py`) and add it to the
-   `LambdaHandlers` dataclass (mark Optional if not always wired).
-3. Grant DynamoDB access (`table.grant_read_data` / `grant_read_write_data`).
-4. Add the route in `ApiConstruct` (`cdk/src/constructs/apigw.py`); update CORS methods if needed.
+## Adding a new endpoint
+1. Add a FastAPI route to the right module in `services/pledges_api/src/api/` (or a new module whose
+   `router` is included in `app.py`). Return via `json_response(status, body)`; reach DynamoDB through
+   `db.get_table()`; reuse `domain/` for validation + math.
+2. **No CDK / API-Gateway change** — the single `ANY /{proxy+}` route already forwards every path to the app
+   (that's the point of D19).
+3. Add tests in `services/pledges_api/tests/integration/` driving the app via FastAPI's `TestClient`.
 
 ## Conventions
 - Code, identifiers, comments, commit messages in **English**.

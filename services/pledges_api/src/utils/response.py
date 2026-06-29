@@ -1,9 +1,9 @@
-"""Shared HTTP response helpers for the pledges API Lambda handlers.
+"""Shared JSON encoding for the pledges API.
 
-Every handler returns JSON, and DynamoDB hands numbers back as ``Decimal``. This
-module centralizes both concerns — the JSON encoding (whole numbers as ``int``,
-the rest as ``float``; EUR amounts and counts display as integers) and the
-response envelope — so handlers don't each redefine their own.
+DynamoDB hands numbers back as ``Decimal``; ``DecimalEncoder`` serializes whole
+values as ``int`` and the rest as ``float`` (EUR amounts and counts display as
+integers). The FastAPI response wrapper (``utils.http.DecimalJSONResponse``) reuses
+this encoder so every route encodes numbers the same way.
 """
 import json
 from decimal import Decimal
@@ -18,13 +18,3 @@ class DecimalEncoder(json.JSONEncoder):
                 return int(obj)
             return float(obj)
         return super().default(obj)
-
-
-def response(status_code: int, body: dict) -> dict:
-    return {
-        "statusCode": status_code,
-        "headers": {
-            "Content-Type": "application/json",
-        },
-        "body": json.dumps(body, cls=DecimalEncoder),
-    }

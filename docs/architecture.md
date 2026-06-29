@@ -26,13 +26,15 @@ and works on phone + desktop.
                 │  fetch() JSON over HTTPS
                 ▼
    ┌──────────────────────────┐
-   │  API Gateway (HTTP API)   │   CORS: GET/POST/OPTIONS, origins *
+   │  API Gateway (HTTP API)   │   ANY /{proxy+}; CORS GET/POST/OPTIONS, origins *
    └────────────┬─────────────┘
-        ┌────────┼─────────────┬─────────────────────┐
-        ▼        ▼             ▼                     ▼
-    get_stats  list_pledges  create_pledge   get_pledge_by_email
-        └────────┴─────────────┬─────────────────────┘
-                               ▼
+                │
+                ▼
+   ┌──────────────────────────┐
+   │  one Lambda: FastAPI app  │   routes in api/ (stats, pledges, config,
+   │  via Mangum (Python 3.11) │   calculate); shared db/ utils/ domain/
+   └────────────┬─────────────┘
+                ▼
                   ┌──────────────────────────┐
                   │  DynamoDB (one table)     │
                   │  • pledge rows (by email) │
@@ -47,29 +49,32 @@ and works on phone + desktop.
 | Layer | Path | What it is |
 |-------|------|------------|
 | Frontend | `web/` | Plain HTML/CSS/JS static site, no build tools. Deployed to S3. Bilingual CZ/EN via `web/i18n.js` (D1; see "Internationalization"). |
-| Backend | `services/pledges_api/src/` | Framework-agnostic Python; each handler is a Lambda `handler(event, context)`. |
-| Infra | `cdk/` | One CDK stack: DynamoDB + Lambdas + HTTP API + S3 site. |
+| Backend | `services/pledges_api/src/` | One **FastAPI** app (`app.py` + `api/` routers) run in a single Lambda via **Mangum** (R1/D19); `domain/` logic stays framework-agnostic. |
+| Infra | `cdk/` | One CDK stack: DynamoDB + the API Lambda + HTTP API + S3 site. |
 
 ### CDK constructs (`cdk/src/`)
 - `app.py` — CDK app entry (`python -m src.app`).
 - `stack.py` — `FundraisingCalculatorStack`; composes the constructs, outputs `HttpApiUrl`.
 - `constructs/config.py` — `AppConfig` from `cdk.json` context.
 - `constructs/dynamodb.py` — Pledges table (PK `pledgeID`) + `EmailIndex` GSI on `email`.
-- `constructs/lambdas.py` — 7 Lambda functions (Python 3.11) from `../services/pledges_api/src`.
-- `constructs/apigw.py` — HTTP API, CORS, the 7 routes.
+- `constructs/lambdas.py` — the **single API Lambda** (Python 3.11, handler `app.handler`); its asset
+  Docker-bundles FastAPI + Mangum with the source.
+- `constructs/apigw.py` — HTTP API, CORS, a single `ANY /{proxy+}` route → the API Lambda.
 - `constructs/s3_website.py` — public static-website bucket; deploys `../web`.
 
-## API surface — endpoint → handler map
+## API surface — route map
 
-| Method | Path | Handler | Reads / writes |
-|--------|------|---------|----------------|
-| GET | `/stats` | `get_stats.handler` | read `STATS` row |
-| GET | `/pledges` | `list_pledges.handler` | `scan`, anonymous fields only |
-| POST | `/pledges` | `create_pledge.handler` | upsert by email + adjust `STATS` |
-| GET | `/pledges/by-email` | `get_pledge_by_email.handler` | query `EmailIndex` (**returns full record today — PII leak, see "Planned direction"**) |
-| GET | `/config` | `get_config.handler` | read `CONFIG` row (editable balance / goal / breakdown); documented defaults if absent |
-| POST | `/config` | `update_config.handler` | **admin-only** write of `CONFIG`; shared-secret bearer token (constant-time compare, fails closed) |
-| POST | `/calculate` | `calculate.handler` | **read-only** what-if simulator (D2a): `{people, amount, is_monthly, end_month?, end_year?}` → impact + projection vs goal; reads `STATS`/`CONFIG`, writes nothing, no auth |
+One FastAPI app behind `ANY /{proxy+}`; every route lives in `services/pledges_api/src/api/`.
+
+| Method | Path | Route (`src/api/`) | Reads / writes |
+|--------|------|--------------------|----------------|
+| GET | `/stats` | `stats.py` | read `STATS` row |
+| GET | `/pledges` | `pledges.py:list_pledges` | `scan`, anonymous fields only |
+| POST | `/pledges` | `pledges.py:create_or_update_pledge` | upsert by email + adjust `STATS` |
+| GET | `/pledges/by-email` | `pledges.py:get_pledge_by_email` | query `EmailIndex`; returns only the caller's own pledge, projected to an allowlist (no `pledgeID`/timestamps; email not echoed — B1/H1) |
+| GET | `/config` | `config.py:get_config` | read `CONFIG` row (editable balance / goal / breakdown); documented defaults if absent |
+| POST | `/config` | `config.py:update_config` | **admin-only** write of `CONFIG`; shared-secret bearer token (constant-time compare, fails closed) |
+| POST | `/calculate` | `calculate.py` | **read-only** what-if simulator (D2a): `{people, amount, is_monthly, end_month?, end_year?}` → impact + projection vs goal; reads `STATS`/`CONFIG`, writes nothing, no auth |
 
 **Email-based upsert:** email is the identity key. First POST creates; a later POST with the same email
 updates, applying the delta to `STATS`. No tokens/auth — knowing the email is the ownership proof.
@@ -190,8 +195,10 @@ A parity checker (`tools/check-i18n-parity.js`) fails if any language's key set 
 
 ## Testing
 
-- `services/pledges_api/tests/unit/` — pure logic (models, validation), no AWS.
-- `services/pledges_api/tests/integration/` — handlers against **moto**-mocked DynamoDB.
+- `services/pledges_api/tests/unit/` — pure logic (models, validation, Decimal encoding), no AWS.
+- `services/pledges_api/tests/integration/` — the FastAPI app driven via **`TestClient`** against
+  **moto**-mocked DynamoDB, plus `test_proxy_event.py` which feeds a real API-GW HTTP API v2 event through
+  `app.handler` (Mangum) to lock the `ANY /{proxy+}` path routing.
 - `tests/e2e/` (repo root) — against a **deployed** API via the `API_URL` env var; not part of `make test`.
 
 `tests/conftest.py` adds `src/` to the import path. Run: `cd services/pledges_api && python -m pytest tests/ -v`.
