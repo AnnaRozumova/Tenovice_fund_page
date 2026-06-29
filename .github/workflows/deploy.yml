@@ -1,0 +1,72 @@
+name: Deploy
+
+# Deploys the whole CDK stack to AWS. The STAGE drives WAF (decision D21, prod-only):
+#   - stage=dev  -> deploy WITHOUT WAF  (dev stays at €0 for WAF)
+#   - stage=prod -> deploy WITH WAF
+# NB: the WAF WebACL resource itself is added in the AUTH / domain phase, where it
+# attaches to the prod front end (CloudFront — AWS WAF cannot attach to an API
+# Gateway HTTP API directly). This pipeline is already stage-aware, so once that
+# construct lands it switches on for prod and stays off for dev automatically.
+#
+# Manual only for now (workflow_dispatch). Prerequisites before it can run:
+#   1. Create GitHub Environments `dev` and `prod`. In each, add secrets:
+#        - AWS_DEPLOY_ROLE : ARN of an IAM role this repo may assume via OIDC
+#                            (dev and prod are separate AWS accounts -> a role each)
+#        - ADMIN_SECRET    : the POST /config admin secret for that environment
+#      (Optionally require reviewers on the `prod` environment.)
+#   2. Run `cdk bootstrap` once per account/region (eu-central-1).
+# After that you can add a `push: branches: [main]` trigger to auto-deploy dev on merge.
+
+on:
+  workflow_dispatch:
+    inputs:
+      stage:
+        description: "Target stage (dev = no WAF, prod = WAF)"
+        type: choice
+        options: [dev, prod]
+        default: dev
+
+permissions:
+  id-token: write   # request the OIDC token for AWS auth (no static keys)
+  contents: read
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.stage }}   # picks that environment's AWS_DEPLOY_ROLE + ADMIN_SECRET
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.14
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Set up Node (AWS CDK CLI)
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Install CDK CLI + infra deps
+        run: |
+          npm install -g aws-cdk
+          python -m pip install -U pip
+          python -m pip install -e cdk
+
+      - name: Configure AWS credentials (OIDC)
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_DEPLOY_ROLE }}
+          aws-region: eu-central-1
+
+      # Docker is available on the runner, so the Lambda asset (FastAPI + Mangum)
+      # bundles here. cdk.json sets project_name/table defaults; only the stage is
+      # overridden so the same template deploys to dev or prod.
+      - name: CDK deploy
+        working-directory: cdk
+        env:
+          ADMIN_SECRET: ${{ secrets.ADMIN_SECRET }}
+        run: cdk deploy --require-approval never -c stage=${{ inputs.stage }}

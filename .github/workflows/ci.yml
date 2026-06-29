@@ -1,0 +1,43 @@
+name: CI
+
+# Quality gate on every PR (and on pushes to main): the same checks as the local
+# gate (check.sh / check.ps1) — ruff + pytest on Python 3.14 (the Lambda runtime)
+# — plus the CZ/EN i18n parity check. No AWS; pure lint/test. Deployment is in
+# deploy.yml.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.14
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Install lint + test deps
+        run: pip install -r services/pledges_api/requirements-dev.txt
+
+      - name: Ruff (lint)
+        run: ruff check services/pledges_api/src services/pledges_api/tests
+
+      - name: Pytest (unit + integration, moto)
+        working-directory: services/pledges_api
+        run: python -m pytest tests/ -q -rs
+
+      - name: Set up Node (i18n parity checker)
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: i18n parity (CZ/EN keys must match)
+        run: node tools/check-i18n-parity.js

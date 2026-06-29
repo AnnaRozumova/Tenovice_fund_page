@@ -5,6 +5,30 @@ and how it was verified. Companion to `CLAUDE.md` (developer quick-start) and `d
 
 ---
 
+## 2026-06-29 — CI/CD: GitHub Actions pipeline (CI gate + stage-aware deploy, WAF prod-only)
+
+**Why:** add a GitHub Actions pipeline (Ondra). CI runs the quality gate on every PR; CD deploys the CDK
+stack per stage, with WAF prod-only (decision D21).
+
+**What changed:**
+- `.github/workflows/ci.yml` — on PR + push to `main`: ruff + pytest on **Python 3.14** (the same gate as
+  `check.sh`) + the CZ/EN i18n parity check. No AWS.
+- `.github/workflows/deploy.yml` — manual (`workflow_dispatch`) deploy with a `stage` input (dev/prod). AWS
+  auth via **OIDC** (no static keys); `cdk deploy -c stage=<stage>` (Docker on the runner bundles the
+  FastAPI/Mangum Lambda asset). **The stage drives WAF: `dev` = no WAF (€0), `prod` = WAF (D21).** Uses
+  GitHub Environments (`dev`/`prod`) for per-account secrets (`AWS_DEPLOY_ROLE`, `ADMIN_SECRET`).
+
+**Prerequisites before CD can run** (documented in `deploy.yml`): create the `dev`/`prod` GitHub Environments
+with the OIDC role + admin secret; `cdk bootstrap` once per account/region (eu-central-1). The WAF *resource*
+itself lands with the prod front end (**CloudFront** — AWS WAF cannot attach to an API Gateway HTTP API
+directly), so the pipeline is stage-ready now and WAF switches on for prod once that construct exists.
+
+**Verification:** both workflow files parse (jobs: ci=`gate`, deploy=`deploy`); i18n parity passes (136 keys);
+the ruff + pytest gate is green on 3.14 (87 passed, from R2). CD not executed here (needs the OIDC secrets +
+bootstrap). **Not deployed.**
+
+---
+
 ## 2026-06-29 — R3: confirm the frontend is proxy-ready (no re-point needed)
 
 **Why:** R1 put the whole API behind one `ANY /{proxy+}` route — check whether the frontend's API base or
