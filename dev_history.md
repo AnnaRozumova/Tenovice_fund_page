@@ -5,6 +5,29 @@ and how it was verified. Companion to `CLAUDE.md` (developer quick-start) and `d
 
 ---
 
+## 2026-06-29 — F1: first dev deploy of Phase R + point the web at the live dev API
+
+**Why:** deploy the new architecture (Phase R — FastAPI/Mangum, Python 3.14) to the dev AWS account and verify
+it on real infrastructure (the Docker-bundled Lambda asset had only ever been built locally).
+
+**Deploy:** `cdk deploy -c stage=dev` to the dev account (eu-central-1), stack `FundraisingCalculatorStack`.
+Outputs: API `https://wcu3d2uaf2.execute-api.eu-central-1.amazonaws.com`, S3 website
+`fundraising-calculator-dev-026268603137-website`. WAF not deployed on dev (stage-conditional, D21) → €0.
+
+**Live verification (real AWS):** `GET /stats` → 200 zeros; `GET /config` → 200 documented defaults;
+`GET /pledges` → 200 `[]`; `POST /calculate` → 200 with correct monthly impact (3×100×19 = 5700 + projection
+vs goal); `GET /pledges/by-email` (unknown) → 404; `POST /config` wrong secret → 401; unknown path → 404
+(FastAPI). The whole FastAPI/Mangum proxy on Python 3.14 runs on the live Lambda — Phase R confirmed.
+
+**What changed (this PR):**
+- `web/config.js` — `API_URL` now points at the deployed dev API (`wcu3d2uaf2`), replacing the stale
+  `tbaulwfk46` (a previous stack) so the deployed site's calculator hits the live API. Prod gets its own URL
+  at the domain phase (or a same-origin path behind CloudFront).
+
+**Follow-up:** redeploy so the S3 site serves the updated `config.js`.
+
+---
+
 ## 2026-06-29 — Fix: exclude the CONFIG sentinel row from `GET /pledges`
 
 **Why:** the public anonymous list (`list_pledges`) filtered out the `STATS` sentinel row but **not**

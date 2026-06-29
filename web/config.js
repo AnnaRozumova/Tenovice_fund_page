@@ -2,8 +2,10 @@
 // Edit these values as needed
 
 const CONFIG = {
-  // API URL - replace with your deployed API Gateway URL
-  API_URL: 'https://tbaulwfk46.execute-api.eu-central-1.amazonaws.com',
+  // API URL — the deployed API Gateway base. Currently the dev stack
+  // (FundraisingCalculatorStack, eu-central-1). Prod gets its own URL at the
+  // domain/HTTPS phase (or a same-origin path behind CloudFront).
+  API_URL: 'https://wcu3d2uaf2.execute-api.eu-central-1.amazonaws.com',
 
   // Fallback defaults (in EUR). The live values come from GET /config (the
   // editable CONFIG row); these are used only if that request fails. The
