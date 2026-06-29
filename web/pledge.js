@@ -1,97 +1,35 @@
+// Pledge page (D2). Two distinct flows on one page:
+//   1. The what-if SIMULATOR (zones 1+2): inputs -> "Calculate" button -> POST
+//      /calculate -> render the returned result. No math in JS (single source of
+//      truth is the backend, D8/D15); the call fires on the button, never on every
+//      keystroke (Ondra: one request per keystroke would be wasteful).
+//   2. The user's own one-person pledge (zone 3): POST /pledges. No "how many
+//      people" field (that's the simulator) and no email field (known from the
+//      lookup step). 1 pledge = 1 supporter (B4).
+
+// Mirror of the backend EMAIL_RE / caps so junk is rejected before any request.
+const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+const MAX_AMOUNT = 100000;
+const MAX_MESSAGE_LENGTH = 500;
+
 let currentStats = {
   pledged_total: 0,
   monthly_total: 0,
-  pledgers_count: 0,
+  contributors_count: 0,
 };
 
+let pledgeEmail = '';
 let existingPledge = null;
 let isEditMode = false;
+let simIsMonthly = false;
+let lastCalc = null; // last /calculate result, kept so a language switch can re-render it
 
 function $(id) {
   return document.getElementById(id);
 }
 
-function parsePositiveNumber(value) {
-  const parsed = Number(value);
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : 0;
-}
-
-function isMonthlySelected() {
-  return $('is_monthly').checked;
-}
-
-function getRemainingMonths(endMonth, endYear) {
-  const now = new Date();
-  const currentMonth = now.getMonth() + 1;
-  const currentYear = now.getFullYear();
-
-  if (!endMonth || !endYear) {
-    return 0;
-  }
-
-  const monthDiff = (endYear - currentYear) * 12 + (endMonth - currentMonth) + 1;
-  return Math.max(0, monthDiff);
-}
-
-function getFormValues() {
-  return {
-    name: $('name').value.trim(),
-    email: $('email').value.trim(),
-    contributors_count: parsePositiveNumber($('contributors_count').value),
-    amount: parsePositiveNumber($('amount').value),
-    is_monthly: isMonthlySelected(),
-    end_month: parsePositiveNumber($('end_month').value),
-    end_year: parsePositiveNumber($('end_year').value),
-    message: $('message').value.trim(),
-  };
-}
-
-function getPledgeImpact(pledge) {
-  if (!pledge) {
-    return 0;
-  }
-
-  if (Number.isFinite(Number(pledge.campaign_total))) {
-    return Number(pledge.campaign_total);
-  }
-
-  if (pledge.is_monthly) {
-    return Number(pledge.amount || 0) * getRemainingMonths(
-      Number(pledge.end_month || 0),
-      Number(pledge.end_year || 0)
-    );
-  }
-
-  return Number(pledge.amount || 0);
-}
-
-function getMonthlyEffect(pledge) {
-  if (!pledge) {
-    return 0;
-  }
-  return pledge.is_monthly ? Number(pledge.amount || 0) : 0;
-}
-
-function getContributorsCount(pledge) {
-  if (!pledge) {
-    return 0;
-  }
-  return Number(pledge.contributors_count || 0);
-}
-
-function toggleMonthlyFields() {
-  const monthlyFields = $('monthlyFields');
-  if (isMonthlySelected()) {
-    monthlyFields.classList.remove('hidden');
-    monthlyFields.setAttribute('aria-hidden', 'false');
-  } else {
-    monthlyFields.classList.add('hidden');
-    monthlyFields.setAttribute('aria-hidden', 'true');
-  }
-}
-
-function setPreviewStatus(text) {
-  $('previewStatus').textContent = text;
+function isValidEmail(email) {
+  return EMAIL_RE.test(email);
 }
 
 function showError(elementId, message) {
@@ -106,91 +44,17 @@ function hideError(elementId) {
   element.classList.add('hidden');
 }
 
-function showFormSection() {
-  $('pledgeFlowSection').classList.remove('hidden');
+// (end_year, end_month) strictly before (now.year, now.month) — mirrors the
+// backend reject_past check. Used only for input validation, not for any impact
+// math (that lives on the backend).
+function isEndDateInPast(month, year) {
+  const now = new Date();
+  const currentMonth = now.getMonth() + 1;
+  const currentYear = now.getFullYear();
+  return year < currentYear || (year === currentYear && month < currentMonth);
 }
 
-function hideLookupCardsForForm() {
-  $('lookupCard')?.classList.add('hidden');
-  $('existingPledgeCard').classList.add('hidden');
-}
-
-function calculatePreview(values) {
-  const remainingMonths = values.is_monthly
-    ? getRemainingMonths(values.end_month, values.end_year)
-    : 0;
-
-  const pledgeImpact = values.is_monthly
-    ? values.amount * remainingMonths
-    : values.amount;
-
-  const monthlyEffect = values.is_monthly ? values.amount : 0;
-
-  let updatedPledgedTotal = currentStats.pledged_total + pledgeImpact;
-  let updatedMonthlyTotal = currentStats.monthly_total + monthlyEffect;
-  let updatedContributorsCount = currentStats.pledgers_count + values.contributors_count;
-
-  if (isEditMode && existingPledge) {
-    updatedPledgedTotal =
-      currentStats.pledged_total - getPledgeImpact(existingPledge) + pledgeImpact;
-
-    updatedMonthlyTotal =
-      currentStats.monthly_total - getMonthlyEffect(existingPledge) + monthlyEffect;
-
-    updatedContributorsCount =
-      currentStats.pledgers_count - getContributorsCount(existingPledge) + values.contributors_count;
-  }
-
-  const updatedProgressAmount = CONFIG.CURRENT_BALANCE + updatedPledgedTotal;
-  const progressPercent = calculateProgress(
-    updatedProgressAmount,
-    CONFIG.FUNDRAISING_GOAL
-  );
-
-  return {
-    remainingMonths,
-    pledgeImpact,
-    monthlyEffect,
-    updatedPledgedTotal,
-    updatedMonthlyTotal,
-    updatedContributorsCount,
-    updatedProgressAmount,
-    progressPercent,
-  };
-}
-
-function renderPreview() {
-  if ($('pledgeFlowSection').classList.contains('hidden')) {
-    return;
-  }
-
-  const values = getFormValues();
-  const preview = calculatePreview(values);
-
-  $('previewImpact').textContent = formatCurrency(preview.pledgeImpact);
-  $('previewMonthlyEffect').textContent = formatCurrency(preview.monthlyEffect);
-  $('previewPledgedTotal').textContent = formatCurrency(preview.updatedPledgedTotal);
-  $('previewMonthlyTotal').textContent = formatCurrency(preview.updatedMonthlyTotal);
-  $('previewContributorsCount').textContent = preview.updatedContributorsCount;
-  $('previewProgressPercent').textContent = `${preview.progressPercent}%`;
-  $('previewProgressAmount').textContent = formatCurrency(preview.updatedProgressAmount);
-  $('previewGoalAmount').textContent = formatCurrency(CONFIG.FUNDRAISING_GOAL);
-  $('previewProgressBar').style.width = `${Math.max(0, Math.min(preview.progressPercent, 100))}%`;
-
-  if (isEditMode) {
-    $('previewModeNote').innerHTML = '<strong>Edit mode:</strong> preview replaces your existing pledge in current totals.';
-  } else {
-    $('previewModeNote').innerHTML = '<strong>New pledge mode:</strong> preview adds this pledge on top of current totals.';
-  }
-
-  if (values.is_monthly && values.end_month && values.end_year) {
-    setPreviewStatus(`Monthly impact uses ${preview.remainingMonths} remaining month(s).`);
-  } else if (values.is_monthly) {
-    setPreviewStatus('Select end month and end year to calculate total impact.');
-  } else {
-    setPreviewStatus(isEditMode ? 'Editing existing one-time pledge.' : 'Creating new one-time pledge.');
-  }
-}
+// ============ Stats / config-driven chrome ============
 
 async function loadStats() {
   try {
@@ -198,88 +62,344 @@ async function loadStats() {
     if (!response.ok) {
       throw new Error('Failed to fetch stats');
     }
-
     const data = await response.json();
     currentStats = {
       pledged_total: Number(data.pledged_total || 0),
       monthly_total: Number(data.monthly_total || 0),
-      pledgers_count: Number(data.pledgers_count || 0),
+      contributors_count: Number(data.contributors_count || 0),
     };
   } catch (error) {
     console.error('Error loading stats:', error);
-    setPreviewStatus('Could not load current stats. Preview may be unavailable.');
   }
 }
 
-function populateExistingSummary(data) {
-  $('existingName').textContent = data.name || '-';
-  $('existingEmail').textContent = data.email || '-';
-  $('existingContributors').textContent = Number(data.contributors_count || 0);
-  $('existingAmount').textContent = formatCurrency(Number(data.amount || 0));
-  $('existingCampaignTotal').textContent = formatCurrency(Number(data.campaign_total || 0));
-  $('existingMessage').textContent = data.message ? data.message : '-';
+// Sticky top bar: real money raised vs goal (same metric as the home page).
+function renderTopbar() {
+  $('barBalance').textContent = formatCurrency(CONFIG.CURRENT_BALANCE);
+  $('barGoal').textContent = formatCurrency(CONFIG.FUNDRAISING_GOAL);
+  const pct = calculateProgress(CONFIG.CURRENT_BALANCE, CONFIG.FUNDRAISING_GOAL);
+  $('barProgress').style.width = `${Math.max(0, Math.min(pct, 100))}%`;
+  $('barProgressPct').textContent = `${pct}%`;
+}
 
-  if (data.is_monthly) {
-    $('existingType').textContent = 'Monthly recurring';
-    $('existingEndDate').textContent = `${data.end_month}/${data.end_year}`;
-    $('existingEndDateRow').classList.remove('hidden');
+// Social-proof strip: "X friends already pledged €Y" (innerHTML for the <strong>
+// emphasis; values come from the t() params, so they are escaped numbers/currency).
+function renderSupporters() {
+  $('supportersStripText').innerHTML = t('index.supportersStrip', {
+    count: currentStats.contributors_count,
+    amount: formatCurrency(currentStats.pledged_total),
+  });
+}
+
+// ============ Simulator (zones 1 + 2) ============
+
+function setSimType(monthly) {
+  simIsMonthly = monthly;
+  $('simTypeOneTime').classList.toggle('active', !monthly);
+  $('simTypeMonthly').classList.toggle('active', monthly);
+  $('simTypeOneTime').setAttribute('aria-pressed', String(!monthly));
+  $('simTypeMonthly').setAttribute('aria-pressed', String(monthly));
+
+  const monthlyFields = $('simMonthlyFields');
+  monthlyFields.classList.toggle('hidden', !monthly);
+  monthlyFields.setAttribute('aria-hidden', String(!monthly));
+}
+
+function clampWidth(value) {
+  return Math.max(0, Math.min(value, 100));
+}
+
+function renderSimPlaceholder() {
+  lastCalc = null;
+  $('simBigAmount').textContent = '—';
+  $('simBigSub').textContent = t('sim.placeholder');
+  $('simDetail').classList.add('hidden');
+}
+
+function renderSimResult(result) {
+  lastCalc = result;
+
+  const people = Number(result.people);
+  const amount = Number(result.amount);
+  const monthly = Boolean(result.is_monthly);
+
+  $('simBigAmount').textContent = formatCurrency(Number(result.total_impact));
+  $('simBigSub').textContent = t(
+    monthly ? 'sim.peopleAmountMonthly' : 'sim.peopleAmountOneTime',
+    { people, amount: formatCurrency(amount) }
+  );
+
+  $('simTotalImpact').textContent = formatCurrency(Number(result.total_impact));
+
+  if (monthly) {
+    $('simMonthlyRow').classList.remove('hidden');
+    $('simDurationRow').classList.remove('hidden');
+    $('simMonthlyEffect').textContent = formatCurrency(Number(result.monthly_effect));
+    $('simDuration').textContent = t('sim.durationMonths', { n: Number(result.remaining_months) });
   } else {
-    $('existingType').textContent = 'One-time';
-    $('existingEndDateRow').classList.add('hidden');
+    $('simMonthlyRow').classList.add('hidden');
+    $('simDurationRow').classList.add('hidden');
+  }
+
+  const baseline = Number(result.baseline_progress_pct);
+  const scenario = Number(result.scenario_progress_pct);
+  const projected = Number(result.projected_progress_pct);
+
+  const baseWidth = clampWidth(baseline);
+  const addWidth = clampWidth(scenario);
+  $('simSegBase').style.width = `${baseWidth}%`;
+  $('simSegAdd').style.width = `${clampWidth(baseWidth + addWidth) - baseWidth}%`;
+
+  $('simProjectedPct').textContent = `${Math.round(projected)}%`;
+  $('simLegendNow').textContent = t('sim.legendNow', { pct: Math.round(baseline) });
+  $('simLegendScenario').textContent = t('sim.legendScenario', { pct: Math.round(scenario) });
+  $('simProjectedTotal').textContent = formatCurrency(Number(result.projected_total));
+  $('simGoalAmount').textContent = formatCurrency(Number(result.goal));
+
+  $('simDetail').classList.remove('hidden');
+}
+
+function getSimInputs() {
+  const people = parseInt($('simPeople').value, 10);
+  const amount = Number($('simAmount').value);
+  const endMonth = parseInt($('simEndMonth').value, 10);
+  const endYear = parseInt($('simEndYear').value, 10);
+  return { people, amount, endMonth, endYear };
+}
+
+function validateSimInputs(values) {
+  if (!Number.isFinite(values.people) || values.people < 1) {
+    return t('sim.errInputs');
+  }
+  if (!Number.isFinite(values.amount) || values.amount <= 0) {
+    return t('sim.errInputs');
+  }
+  if (simIsMonthly) {
+    if (!values.endMonth || values.endMonth < 1 || values.endMonth > 12 || !values.endYear) {
+      return t('sim.errEndDate');
+    }
+  }
+  return '';
+}
+
+async function runCalculate() {
+  hideError('simError');
+
+  const values = getSimInputs();
+  const validationError = validateSimInputs(values);
+  if (validationError) {
+    showError('simError', validationError);
+    return;
+  }
+
+  const payload = {
+    people: values.people,
+    amount: values.amount,
+    is_monthly: simIsMonthly,
+  };
+  if (simIsMonthly) {
+    payload.end_month = values.endMonth;
+    payload.end_year = values.endYear;
+  }
+
+  const button = $('simCalcButton');
+  button.disabled = true;
+  button.textContent = t('sim.btnCalculating');
+
+  try {
+    const response = await fetch(`${CONFIG.API_URL}/calculate`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    if (!response.ok) {
+      throw new Error('Calculate failed');
+    }
+    const data = await response.json();
+    renderSimResult(data);
+  } catch (error) {
+    console.error('Error running calculation:', error);
+    showError('simError', t('sim.errCalc'));
+  } finally {
+    button.disabled = false;
+    button.textContent = t('sim.calcButton');
   }
 }
 
-function populateForm(values) {
-  $('name').value = values.name || '';
-  $('email').value = values.email || '';
-  $('contributors_count').value = Number(values.contributors_count || 1);
+function setupSimulator() {
+  $('simTypeOneTime').addEventListener('click', () => setSimType(false));
+  $('simTypeMonthly').addEventListener('click', () => setSimType(true));
+  $('simCalcButton').addEventListener('click', runCalculate);
+}
+
+// ============ Pledge form (zone 3) ============
+
+function toggleMonthlyFields() {
+  const monthlyFields = $('monthlyFields');
+  const monthly = $('is_monthly').checked;
+  monthlyFields.classList.toggle('hidden', !monthly);
+  monthlyFields.setAttribute('aria-hidden', String(!monthly));
+}
+
+function getPledgeValues() {
+  return {
+    amount: Number($('amount').value),
+    is_monthly: $('is_monthly').checked,
+    end_month: parseInt($('end_month').value, 10),
+    end_year: parseInt($('end_year').value, 10),
+    message: $('message').value.trim(),
+  };
+}
+
+function validatePledgeForm(values) {
+  if (!Number.isFinite(values.amount) || values.amount <= 0) {
+    return t('pledge.errAmount');
+  }
+  if (values.amount > MAX_AMOUNT) {
+    return t('pledge.errAmountMax', { max: formatCurrency(MAX_AMOUNT) });
+  }
+  if (values.message.length > MAX_MESSAGE_LENGTH) {
+    return t('pledge.errMessageMax', { max: MAX_MESSAGE_LENGTH });
+  }
+  if (values.is_monthly) {
+    if (!values.end_month || values.end_month < 1 || values.end_month > 12) {
+      return t('pledge.errEndMonth');
+    }
+    if (!values.end_year || values.end_year < new Date().getFullYear()) {
+      return t('pledge.errEndYear');
+    }
+    if (isEndDateInPast(values.end_month, values.end_year)) {
+      return t('pledge.errEndPast');
+    }
+  }
+  return '';
+}
+
+function buildPayload(values) {
+  const payload = {
+    email: pledgeEmail,
+    amount: values.amount,
+    is_monthly: values.is_monthly,
+  };
+  if (values.message) {
+    payload.message = values.message;
+  }
+  if (values.is_monthly) {
+    payload.end_month = values.end_month;
+    payload.end_year = values.end_year;
+  }
+  return payload;
+}
+
+async function submitPledge(event) {
+  event.preventDefault();
+  hideError('formError');
+
+  const values = getPledgeValues();
+  const validationError = validatePledgeForm(values);
+  if (validationError) {
+    showError('formError', validationError);
+    return;
+  }
+
+  const button = $('savePledgeButton');
+  button.disabled = true;
+  button.textContent = t('pledge.btnSaving');
+
+  try {
+    const response = await fetch(`${CONFIG.API_URL}/pledges`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(buildPayload(values)),
+    });
+    if (!response.ok) {
+      throw new Error('Failed to save pledge');
+    }
+    // Tell the success page which payment path to show: one-time -> QR,
+    // monthly -> standing-order bank details (E1).
+    const type = values.is_monthly ? 'monthly' : 'one-time';
+    window.location.href = `success.html?type=${type}`;
+  } catch (error) {
+    console.error('Error saving pledge:', error);
+    showError('formError', t('pledge.errSave'));
+    button.disabled = false;
+    button.textContent = t('pledge.save');
+  }
+}
+
+function setupPledgeForm() {
+  $('is_monthly').addEventListener('change', toggleMonthlyFields);
+  $('pledgeForm').addEventListener('submit', submitPledge);
+}
+
+// Zone-3 heading/intro depend on create vs edit, so they are set in JS and
+// re-applied on a language switch (data-i18n covers the rest of the markup).
+function setFormModeText() {
+  $('pledgeFormTitle').textContent = isEditMode
+    ? t('pledge.formTitleEdit')
+    : t('pledge.zoneHeading');
+  $('pledgeFormIntro').textContent = isEditMode
+    ? t('pledge.formIntroEdit')
+    : t('pledge.zoneIntro');
+}
+
+function fillPledgeForm(values) {
   $('amount').value = Number(values.amount || 0) || '';
   $('is_monthly').checked = Boolean(values.is_monthly);
   $('end_month').value = values.end_month ? String(values.end_month) : '';
   $('end_year').value = values.end_year ? String(values.end_year) : '';
   $('message').value = values.message || '';
-
   toggleMonthlyFields();
-  renderPreview();
+}
+
+// ============ Step transitions ============
+
+function showFlowSection() {
+  $('lookupHero').classList.add('hidden');
+  $('lookupCard').classList.add('hidden');
+  $('existingPledgeCard').classList.add('hidden');
+  $('pledgeFlowSection').classList.remove('hidden');
+
+  renderTopbar();
+  renderSupporters();
+  $('simGoalAmount').textContent = formatCurrency(CONFIG.FUNDRAISING_GOAL);
+  renderSimPlaceholder();
+  setFormModeText();
 }
 
 function enterCreateMode(email) {
+  pledgeEmail = email;
   existingPledge = null;
   isEditMode = false;
-
-  hideLookupCardsForForm();
-  showFormSection();
-
-  $('pledgeFormTitle').textContent = 'Your pledge';
-  $('pledgeFormIntro').textContent = 'All preview values below update live before you save.';
-  $('email').readOnly = false;
-
-  populateForm({
-    name: '',
-    email,
-    contributors_count: 1,
-    amount: '',
-    is_monthly: false,
-    end_month: '',
-    end_year: '',
-    message: '',
-  });
+  showFlowSection();
+  fillPledgeForm({ amount: '', is_monthly: false, end_month: '', end_year: '', message: '' });
 }
 
 function enterEditMode() {
   if (!existingPledge) {
     return;
   }
-
   isEditMode = true;
-  hideLookupCardsForForm();
-  showFormSection();
+  showFlowSection();
+  fillPledgeForm(existingPledge);
+}
 
-  $('pledgeFormTitle').textContent = 'Update your pledge';
-  $('pledgeFormIntro').textContent = 'You are editing an existing pledge. Preview values replace your current pledge in totals.';
-  $('email').readOnly = true;
+function populateExistingSummary(data) {
+  // The by-email response no longer echoes the email (H1); show the one the user
+  // just entered for the lookup (already stored in pledgeEmail).
+  $('existingEmail').textContent = pledgeEmail || '-';
+  $('existingAmount').textContent = formatCurrency(Number(data.amount || 0));
+  $('existingCampaignTotal').textContent = formatCurrency(Number(data.campaign_total || 0));
+  $('existingMessage').textContent = data.message ? data.message : '-';
 
-  populateForm(existingPledge);
+  if (data.is_monthly) {
+    $('existingType').textContent = t('pledge.typeMonthly');
+    $('existingEndDate').textContent = `${data.end_month}/${data.end_year}`;
+    $('existingEndDateRow').classList.remove('hidden');
+  } else {
+    $('existingType').textContent = t('pledge.typeOneTime');
+    $('existingEndDateRow').classList.add('hidden');
+  }
 }
 
 async function lookupPledgeByEmail(email) {
@@ -291,20 +411,23 @@ async function lookupPledgeByEmail(email) {
 async function handleLookup() {
   hideError('lookupError');
 
-  const lookupButton = $('lookupButton');
+  const button = $('lookupButton');
   const email = $('lookupEmail').value.trim();
 
   if (!email) {
-    showError('lookupError', 'Please enter your email.');
+    showError('lookupError', t('pledge.errEmailRequired'));
+    return;
+  }
+  if (!isValidEmail(email)) {
+    showError('lookupError', t('pledge.errEmailFormat'));
     return;
   }
 
-  lookupButton.disabled = true;
-  lookupButton.textContent = 'Checking...';
+  button.disabled = true;
+  button.textContent = t('pledge.btnChecking');
 
   try {
     await loadStats();
-
     const { response, data } = await lookupPledgeByEmail(email);
 
     if (!response.ok && data.message !== 'not found') {
@@ -316,132 +439,18 @@ async function handleLookup() {
       return;
     }
 
+    pledgeEmail = email;
     existingPledge = data;
     isEditMode = false;
     populateExistingSummary(data);
     $('existingPledgeCard').classList.remove('hidden');
   } catch (error) {
     console.error('Error looking up pledge:', error);
-    showError('lookupError', 'Could not check existing pledge. Please try again.');
+    showError('lookupError', t('pledge.errLookup'));
   } finally {
-    lookupButton.disabled = false;
-    lookupButton.textContent = 'Continue';
+    button.disabled = false;
+    button.textContent = t('pledge.continue');
   }
-}
-
-function validateForm(values) {
-  if (!values.name) {
-    return 'Please enter your name.';
-  }
-
-  if (!values.email) {
-    return 'Please enter your email.';
-  }
-
-  if (values.contributors_count <= 0) {
-    return 'Contributors count must be greater than 0.';
-  }
-
-  if (values.amount <= 0) {
-    return 'Amount must be greater than 0.';
-  }
-
-  if (values.is_monthly) {
-    if (!values.end_month || values.end_month < 1 || values.end_month > 12) {
-      return 'End month must be between 1 and 12.';
-    }
-
-    if (!values.end_year || values.end_year < new Date().getFullYear()) {
-      return 'Please enter a valid end year.';
-    }
-
-    if (getRemainingMonths(values.end_month, values.end_year) <= 0) {
-      return 'Monthly pledge end date must be in the current or a future month.';
-    }
-  }
-
-  return '';
-}
-
-function buildPayload(values) {
-  const payload = {
-    name: values.name,
-    email: values.email,
-    contributors_count: values.contributors_count,
-    amount: values.amount,
-    is_monthly: values.is_monthly,
-  };
-
-  if (values.message) {
-    payload.message = values.message;
-  }
-
-  if (values.is_monthly) {
-    payload.end_month = values.end_month;
-    payload.end_year = values.end_year;
-  }
-
-  return payload;
-}
-
-async function submitPledge(event) {
-  event.preventDefault();
-
-  hideError('formError');
-  $('formSuccess').classList.add('hidden');
-  $('formSuccess').textContent = '';
-
-  const values = getFormValues();
-  const validationError = validateForm(values);
-  const submitButton = $('savePledgeButton');
-
-  if (validationError) {
-    showError('formError', validationError);
-    return;
-  }
-
-  submitButton.disabled = true;
-  submitButton.textContent = 'Saving...';
-
-  try {
-    const response = await fetch(`${CONFIG.API_URL}/pledges`, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify(buildPayload(values)),
-    });
-
-    if (!response.ok) {
-      throw new Error('Failed to save pledge');
-    }
-
-    window.location.href = 'success.html';
-  } catch (error) {
-    console.error('Error saving pledge:', error);
-    showError('formError', 'Could not save pledge. Please try again.');
-    submitButton.disabled = false;
-    submitButton.textContent = 'Save pledge';
-  }
-}
-
-function setupForm() {
-  const form = $('pledgeForm');
-  const inputs = form.querySelectorAll('input, textarea, select');
-
-  inputs.forEach((input) => {
-    input.addEventListener('input', () => {
-      toggleMonthlyFields();
-      renderPreview();
-    });
-
-    input.addEventListener('change', () => {
-      toggleMonthlyFields();
-      renderPreview();
-    });
-  });
-
-  form.addEventListener('submit', submitPledge);
 }
 
 function setupLookup() {
@@ -449,12 +458,29 @@ function setupLookup() {
   $('editExistingButton').addEventListener('click', enterEditMode);
 }
 
+// On a language switch, refresh the strings JS renders at runtime (data-i18n
+// covers the static markup automatically).
+function refreshDynamicI18n() {
+  if (existingPledge && !$('existingPledgeCard').classList.contains('hidden')) {
+    populateExistingSummary(existingPledge);
+  }
+  if (!$('pledgeFlowSection').classList.contains('hidden')) {
+    renderSupporters();
+    setFormModeText();
+    if (lastCalc) {
+      renderSimResult(lastCalc);
+    } else {
+      renderSimPlaceholder();
+    }
+  }
+}
+
 async function initPledgePage() {
+  await loadConfig();
   setupLookup();
-  setupForm();
-  $('previewGoalAmount').textContent = formatCurrency(CONFIG.FUNDRAISING_GOAL);
-  $('previewProgressAmount').textContent = formatCurrency(CONFIG.CURRENT_BALANCE);
-  setPreviewStatus('Enter your email to begin.');
+  setupSimulator();
+  setupPledgeForm();
+  document.addEventListener('i18n:changed', refreshDynamicI18n);
 }
 
 if (document.readyState === 'loading') {

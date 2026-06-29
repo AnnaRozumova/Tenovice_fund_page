@@ -3,6 +3,7 @@ from constructs import Construct
 from aws_cdk import (
     aws_s3 as s3,
     aws_s3_deployment as s3deploy,
+    Aws,
     RemovalPolicy,
     CfnOutput,
 )
@@ -18,7 +19,13 @@ class S3WebsiteConstruct(Construct):
         self.website_bucket = s3.Bucket(
             self,
             "WebsiteBucket",
-            bucket_name=f"{config.project_name}-{config.stage}-website",
+            # S3 bucket names are GLOBALLY unique across all of AWS, so
+            # "{project}-{stage}-website" clashes the moment the same app is
+            # deployed from a second account (e.g. a per-developer dev account
+            # alongside the shared one). Include the account id: it guarantees
+            # cross-account uniqueness, while `stage` separates environments
+            # within one account. Resolved by CloudFormation at deploy time.
+            bucket_name=f"{config.project_name}-{config.stage}-{Aws.ACCOUNT_ID}-website",
             website_index_document="index.html",
             website_error_document="index.html",
             public_read_access=True,

@@ -151,10 +151,11 @@ curl -X GET "$API_URL/stats"
 curl -X POST "$API_URL/pledges" \
   -H "Content-Type: application/json" \
   -d '{
-    "name": "John Doe",
     "email": "john@example.com",
     "amount": 100,
     "is_monthly": true,
+    "end_month": 12,
+    "end_year": 2030,
     "message": "Great cause!"
   }'
 
@@ -197,7 +198,7 @@ jobs:
       - uses: actions/checkout@v3
       - uses: actions/setup-python@v4
         with:
-          python-version: '3.11'
+          python-version: '3.14'
 
       - name: Install dependencies
         run: |

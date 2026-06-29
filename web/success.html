@@ -3,34 +3,148 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Pledge Saved | Tenovice Fundraising</title>
+  <title data-i18n="success.docTitle">Pledge Saved | Tenovice Fundraising</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
   <div class="container">
     <header class="header">
-      <div class="logo">
-        <img src="images/logo_kagyu.svg" alt="Karma Kagyu buddhism">
+      <div class="header-row">
+        <div class="logo">
+          <img src="images/logo_kagyu.svg" data-i18n-alt="common.logoAlt" alt="Karma Kagyu buddhism">
+        </div>
+        <div class="lang-toggle header-lang" role="group" data-i18n-aria-label="common.langLabel" aria-label="Language">
+          <button type="button" class="lang-btn" data-set-lang="cs">CS</button>
+          <span class="lang-sep" aria-hidden="true">·</span>
+          <button type="button" class="lang-btn" data-set-lang="en">EN</button>
+        </div>
       </div>
     </header>
 
     <section class="success-card">
       <div class="success-icon">✓</div>
-      <p class="page-eyebrow">Thank you</p>
-      <h1>Your pledge was saved</h1>
-      <p class="page-description">
-        Thank you for supporting the Tenovice Project. You can now return to the homepage and see the refreshed campaign view.
+      <h1 class="success-title" data-i18n="success.heading">Your pledge was saved</h1>
+      <p class="success-thanks" data-i18n="success.thankYou">Thank you</p>
+      <p class="page-description" data-i18n="success.description">
+        Thank you for supporting the Tenovice Project. A pledge is a public promise — now send the gift yourself using the details below.
+      </p>
+    </section>
+
+    <!-- ============ Payment instructions (E1) ============
+         The heading/intro and whether the QR codes show depend on the pledge
+         type, set by success.js from the ?type=one-time|monthly query param.
+         Each column pairs a QR (one-time only) with its bank-detail window, so on
+         mobile a QR sits directly above its own account window. -->
+    <section class="payment-card" id="paymentCard">
+      <h2 class="center" id="paymentHeading" data-i18n="payment.oneTimeHeading">Send your one-time gift</h2>
+      <p class="section-intro center" id="paymentIntro" data-i18n="payment.oneTimeIntro">
+        Scan the QR code with your banking app, or use the bank details below.
       </p>
 
+      <!-- monthly only: how to set up a recurring standing order -->
+      <p class="payment-note center hidden" id="monthlyNote" data-i18n="payment.monthlyNote">
+        Set up a monthly standing order in your bank using the details below. There is no QR code for recurring payments.
+      </p>
+
+      <div class="payment-columns">
+        <!-- Czech account: QR above its window -->
+        <div class="payment-col">
+          <figure class="qr-card" data-qr>
+            <img src="images/qr_cz.jpg" data-i18n-alt="payment.qrCzAlt" alt="Czech payment QR code">
+            <figcaption data-i18n="payment.qrCzCaption">Czech bank account (CZK)</figcaption>
+          </figure>
+          <div class="bank-card">
+            <h3 data-i18n="payment.czHeading">Czech account (CZK)</h3>
+            <dl class="bank-rows">
+              <div class="bank-row">
+                <dt data-i18n="payment.accountName">Account holder</dt>
+                <dd>Nadační fond Buddhismu diamantové cesty</dd>
+              </div>
+              <div class="bank-row">
+                <dt data-i18n="payment.accountNumber">Account number</dt>
+                <dd>
+                  <span class="bank-value">19-2247060207/0100</span>
+                  <button type="button" class="copy-btn" data-copy-target="19-2247060207/0100" data-i18n-aria-label="payment.copy" aria-label="Copy">⧉</button>
+                </dd>
+              </div>
+              <div class="bank-row">
+                <dt data-i18n="payment.variableSymbol">Variable symbol</dt>
+                <dd>
+                  <span class="bank-value">YYMMDD0108</span>
+                  <button type="button" class="copy-btn" data-copy-target="YYMMDD0108" data-i18n-aria-label="payment.copy" aria-label="Copy">⧉</button>
+                </dd>
+              </div>
+              <div class="bank-row">
+                <dt data-i18n="payment.message">Message for recipient</dt>
+                <dd>
+                  <span class="bank-value" id="msgValue" data-i18n="payment.messageValue">Surname/Gift/Tenovice</span>
+                  <button type="button" class="copy-btn" data-copy-el="msgValue" data-i18n-aria-label="payment.copy" aria-label="Copy">⧉</button>
+                </dd>
+              </div>
+            </dl>
+            <p class="bank-hint" data-i18n="payment.czHint">
+              The variable symbol is the date of your payment (YYMMDD) followed by 0108. Replace “Surname” with your own.
+            </p>
+          </div>
+        </div>
+
+        <!-- International account: QR above its window -->
+        <div class="payment-col">
+          <figure class="qr-card" data-qr>
+            <img src="images/qr_intl.jpg" data-i18n-alt="payment.qrIntlAlt" alt="International payment QR code">
+            <figcaption data-i18n="payment.qrIntlCaption">International account (EUR)</figcaption>
+          </figure>
+          <div class="bank-card">
+            <h3 data-i18n="payment.intlHeading">International account (EUR)</h3>
+            <dl class="bank-rows">
+              <div class="bank-row">
+                <dt data-i18n="payment.accountName">Account holder</dt>
+                <dd>International Diamondway Buddhism Foundation</dd>
+              </div>
+              <div class="bank-row">
+                <dt data-i18n="payment.bank">Bank</dt>
+                <dd>GLS Bank</dd>
+              </div>
+              <div class="bank-row">
+                <dt data-i18n="payment.iban">IBAN</dt>
+                <dd>
+                  <span class="bank-value">DE24 4306 0967 0046 9538 18</span>
+                  <button type="button" class="copy-btn" data-copy-target="DE24430609670046953818" data-i18n-aria-label="payment.copy" aria-label="Copy">⧉</button>
+                </dd>
+              </div>
+              <div class="bank-row">
+                <dt data-i18n="payment.bic">BIC</dt>
+                <dd>
+                  <span class="bank-value">GENODEM1GLS</span>
+                  <button type="button" class="copy-btn" data-copy-target="GENODEM1GLS" data-i18n-aria-label="payment.copy" aria-label="Copy">⧉</button>
+                </dd>
+              </div>
+              <div class="bank-row">
+                <dt data-i18n="payment.purpose">Purpose</dt>
+                <dd>
+                  <span class="bank-value">TENOVICE</span>
+                  <button type="button" class="copy-btn" data-copy-target="TENOVICE" data-i18n-aria-label="payment.copy" aria-label="Copy">⧉</button>
+                </dd>
+              </div>
+            </dl>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="success-card success-card-actions">
       <div class="success-actions">
-        <a href="index.html" class="cta-button success-primary-link">Back to homepage</a>
-        <a href="pledge.html" class="secondary-button">Make another pledge</a>
+        <a href="index.html" class="cta-button success-primary-link" data-i18n="common.backHome">Back to homepage</a>
+        <a href="pledge.html" class="secondary-button" data-i18n="success.another">Make another pledge</a>
       </div>
     </section>
 
     <footer class="footer">
-      <p>&copy; 2026 Tenovice Project. All rights reserved.</p>
+      <p data-i18n="footer.copyright">&copy; 2026 Tenovice Project. All rights reserved.</p>
     </footer>
   </div>
+
+  <script src="i18n.js"></script>
+  <script src="success.js"></script>
 </body>
 </html>

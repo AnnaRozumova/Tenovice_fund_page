@@ -7,9 +7,7 @@ from typing import Optional
 @dataclass
 class Pledge:
     pledge_id: str
-    name: str
     email: str
-    contributors_count: int
     amount: Decimal
     is_monthly: bool
     created_at: str
@@ -23,9 +21,7 @@ class Pledge:
         """Convert to DynamoDB item format"""
         item = {
             "pledgeID": self.pledge_id,
-            "name": self.name,
             "email": self.email,
-            "contributors_count": self.contributors_count,
             "amount": self.amount,
             "is_monthly": self.is_monthly,
             "campaign_total": self.campaign_total,
@@ -47,12 +43,15 @@ class Pledge:
 
     @staticmethod
     def from_dynamodb_item(item: dict) -> "Pledge":
-        """Create Pledge from DynamoDB item"""
+        """Create Pledge from DynamoDB item.
+
+        Legacy rows may still carry a ``contributors_count`` attribute (B4 stopped
+        writing it; pre-B4 rows keep theirs). It is simply ignored here — a pledge
+        now represents one person.
+        """
         return Pledge(
             pledge_id=item["pledgeID"],
-            name=item["name"],
             email=item["email"],
-            contributors_count=int(item["contributors_count"]),
             amount=item["amount"],
             is_monthly=item["is_monthly"],
             created_at=item["created_at"],

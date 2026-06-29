@@ -13,19 +13,22 @@ async function loadPledgesStats() {
 
     // Update pledges stats
     document.getElementById('pledgesTotal').textContent = formatCurrency(data.pledged_total || 0);
-    document.getElementById('pledgesCount').textContent = data.pledgers_count || 0;
+    document.getElementById('pledgesCount').textContent = data.contributors_count || 0;
     document.getElementById('pledgesMonthly').textContent = formatCurrency(data.monthly_total || 0);
 
   } catch (error) {
     console.error('Error loading stats:', error);
-    document.getElementById('pledgesTotal').textContent = 'N/A';
-    document.getElementById('pledgesCount').textContent = 'N/A';
-    document.getElementById('pledgesMonthly').textContent = 'N/A';
+    document.getElementById('pledgesTotal').textContent = t('common.na');
+    document.getElementById('pledgesCount').textContent = t('common.na');
+    document.getElementById('pledgesMonthly').textContent = t('common.na');
   }
 }
 
-// Update progress bar
+// Render the balance, goal, and progress bar from CONFIG (live values from /config)
 function updateProgressBar() {
+  document.getElementById('currentBalance').textContent = formatCurrency(CONFIG.CURRENT_BALANCE);
+  document.getElementById('fundraisingGoal').textContent = formatCurrency(CONFIG.FUNDRAISING_GOAL);
+
   const progress = calculateProgress(CONFIG.CURRENT_BALANCE, CONFIG.FUNDRAISING_GOAL);
   const progressBar = document.getElementById('progressBar');
   const progressPercent = document.getElementById('progressPercent');
@@ -48,6 +51,7 @@ function setupPledgeButton() {
 
 // Initialize app
 async function init() {
+  await loadConfig();
   updateProgressBar();
   await loadPledgesStats();
   setupPledgeButton();

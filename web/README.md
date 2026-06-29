@@ -92,12 +92,19 @@ aws s3 website s3://your-bucket-name --index-document index.html
 
 ```
 web/
-├── index.html      # Main page
+├── index.html      # Home page (progress + stats)
+├── pledge.html     # Pledge calculator (lookup, create/edit, live preview)
+├── success.html    # Post-pledge confirmation
+├── admin.html      # Internal admin: edit balance/goal/breakdown (English only)
 ├── style.css       # Styling
-├── config.js       # Configuration (API URL, hardcoded values)
-├── main.js         # JavaScript logic
+├── config.js       # API URL + fallback defaults; loads live values from GET /config
+├── i18n.js         # CZ/EN dictionary + toggle (see "Languages")
+├── main.js         # Home-page logic
+├── pledge.js       # Pledge-page logic
+├── admin.js        # Admin-page logic
 └── README.md       # This file
 ```
+(Parity checker lives outside `web/` at `tools/check-i18n-parity.js`.)
 
 ## Features
 
@@ -110,24 +117,40 @@ web/
 
 ## Testing Locally
 
-You can test by simply opening `index.html` in a browser, but API calls may be blocked by CORS if testing from `file://` protocol.
+Serve the site over HTTP — don't open `index.html` from `file://`, API calls get blocked by CORS.
 
-To test properly:
+**One command, from the repo root:**
+```bash
+bash ./serve.sh          # serves web/ at http://localhost:8000 (Linux/macOS/CI)
+bash ./serve.sh 8080     # custom port
+```
+On Windows the equivalent is `pwsh ./serve.ps1` (`-Port 8080` for a custom port). Both serve `web/` on
+Python 3.14 and send `Cache-Control: no-store` so edits show on a normal refresh.
 
-**Option 1: Python**
+The **API base is a single config value** — `CONFIG.API_URL` in `config.js`. It defaults to the live
+dev API, so the calculator shows real data locally; point it at another API if you need to.
+
+**Plain Python (any OS):**
 ```bash
 cd web
-python -m http.server 8000
-# Open http://localhost:8000
+python -m http.server 8000    # open http://localhost:8000 (no no-cache header)
 ```
 
-**Option 2: PHP**
+## Languages (i18n)
+
+The public pages are bilingual — **Czech (default) and English** — with a subtle `CS · EN` toggle in the
+top-right of each page. All user-facing strings live in **one dictionary**, `web/i18n.js`
+(`TRANSLATIONS.cs` / `TRANSLATIONS.en`, flat keys like `index.heroTitle`).
+
+- **Markup** is tagged with `data-i18n="key"` (text), `data-i18n-html="key"` (HTML, e.g. `<strong>`),
+  or `data-i18n-placeholder` / `data-i18n-alt` / `data-i18n-aria-label`.
+- **JS-rendered** strings use `t('key')` (with `{param}` interpolation, e.g. `t('sim.durationMonths', { n: 6 })`).
+- The chosen language is stored in `localStorage` and `<html lang>` follows it. Adding a third language
+  (the structure is DE-ready) = add a `de` block with the same keys.
+- `admin.html` is an internal tool and stays English (not part of the public i18n).
+
+**Parity check** — every language must define exactly the same keys. Run from the repo root:
 ```bash
-cd web
-php -S localhost:8000
-# Open http://localhost:8000
+node tools/check-i18n-parity.js
 ```
-
-**Option 3: VS Code Live Server Extension**
-- Install "Live Server" extension
-- Right-click `index.html` → Open with Live Server
+It exits non-zero and lists any missing/extra key, so a half-translated string can't ship.

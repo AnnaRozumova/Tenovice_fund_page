@@ -1,6 +1,6 @@
 SHELL := /bin/bash
 
-.PHONY: help infra-install infra-synth infra-diff infra-deploy infra-destroy infra-bootstrap test test-unit test-integration test-coverage
+.PHONY: help infra-install infra-synth infra-diff infra-deploy infra-destroy infra-bootstrap test test-unit test-integration test-coverage check
 
 help:
 	@echo "Targets:"
@@ -14,6 +14,7 @@ help:
 	@echo "  test-unit         Run unit tests only"
 	@echo "  test-integration  Run integration tests only"
 	@echo "  test-coverage     Run tests with coverage report"
+	@echo "  check             Local quality gate: ruff lint + pytest (Windows: pwsh ./check.ps1)"
 
 infra-install:
 	$(MAKE) -C cdk install
@@ -44,3 +45,8 @@ test-integration:
 
 test-coverage:
 	cd services/pledges_api && python -m pytest tests/ -v --cov=src --cov-report=html --cov-report=term
+
+# Local quality gate (CI / Unix parity; Windows dev uses `pwsh ./check.ps1`).
+# Assumes ruff + test deps are installed (services/pledges_api/requirements-dev.txt).
+check:
+	cd services/pledges_api && ruff check src tests && python -m pytest tests/ -q -rs

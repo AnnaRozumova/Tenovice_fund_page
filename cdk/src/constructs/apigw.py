@@ -1,10 +1,16 @@
-"""Docstring"""
+"""HTTP API with a single catch-all proxy route → the one FastAPI Lambda (D19).
+
+Every path/method (``ANY /{proxy+}``) is forwarded to the single API function; the
+routing happens inside FastAPI. Adding or changing an endpoint is a code change in
+FastAPI, with no API-GW/CDK edit. CORS preflight stays at the gateway. (Once auth
+lands, the Cognito JWT authorizer attaches to this one route — D18.)
+"""
 from constructs import Construct
 from aws_cdk import aws_apigatewayv2 as apigwv2
 from aws_cdk import aws_apigatewayv2_integrations as integrations
+from aws_cdk import aws_lambda as _lambda
 
 from .config import AppConfig
-from .lambdas import LambdaHandlers
 
 
 class ApiConstruct(Construct):
@@ -14,7 +20,7 @@ class ApiConstruct(Construct):
         construct_id: str,
         *,
         config: AppConfig,
-        handlers: LambdaHandlers,
+        api_function: _lambda.IFunction,
     ) -> None:
         super().__init__(scope, construct_id)
 
@@ -33,41 +39,13 @@ class ApiConstruct(Construct):
             ),
         )
 
+        # One catch-all route: ANY method, any path → the FastAPI Lambda. FastAPI
+        # does the per-endpoint routing. (Authorizer attaches here later, D18.)
         self.http_api.add_routes(
-            path="/stats",
-            methods=[apigwv2.HttpMethod.GET],
+            path="/{proxy+}",
+            methods=[apigwv2.HttpMethod.ANY],
             integration=integrations.HttpLambdaIntegration(
-                "GetStatsIntegration",
-                handler=handlers.get_stats,
+                "ApiIntegration",
+                handler=api_function,
             ),
         )
-
-        if handlers.list_pledges:
-            self.http_api.add_routes(
-                path="/pledges",
-                methods=[apigwv2.HttpMethod.GET],
-                integration=integrations.HttpLambdaIntegration(
-                    "ListPledgesIntegration",
-                    handler=handlers.list_pledges,
-                ),
-            )
-
-        if handlers.create_pledge:
-            self.http_api.add_routes(
-                path="/pledges",
-                methods=[apigwv2.HttpMethod.POST],
-                integration=integrations.HttpLambdaIntegration(
-                    "CreatePledgeIntegration",
-                    handler=handlers.create_pledge,
-                ),
-            )
-
-        if handlers.get_pledge_by_email:
-            self.http_api.add_routes(
-                path="/pledges/by-email",
-                methods=[apigwv2.HttpMethod.GET],
-                integration=integrations.HttpLambdaIntegration(
-                    "GetPledgeByEmailIntegration",
-                    handler=handlers.get_pledge_by_email,
-                ),
-            )
