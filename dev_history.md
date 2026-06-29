@@ -5,6 +5,27 @@ and how it was verified. Companion to `CLAUDE.md` (developer quick-start) and `d
 
 ---
 
+## 2026-06-29 — Fix: CORS preflight (OPTIONS) returned 405 → browser blocked POSTs
+
+**Why:** after the first dev deploy, the deployed site's **calculator and pledge save failed in the browser**
+("Výpočet/Příslib se nepodařilo…"), even though direct `curl` worked. Cause = CORS: the browser sends a
+preflight `OPTIONS` before each POST; that preflight is forwarded through the single `ANY /{proxy+}` route
+into FastAPI, which has no OPTIONS handler and returned **405**. A non-2xx preflight makes the browser block
+the actual POST. (API Gateway already adds the CORS headers — only the status was wrong.)
+
+**Fix:** `services/pledges_api/src/app.py` — an HTTP middleware answers every `OPTIONS` with **204** before
+routing. (Not a catch-all `@app.options("/{path}")` route — that registers every path and would turn
+unknown-path GETs into 405 instead of 404; caught by the existing proxy test.) API Gateway attaches the CORS
+headers in front of the 204.
+
+**Verification:** gate green — ruff clean, **90 passed** (+1 proxy test: `OPTIONS /calculate` → 204;
+unknown-path GET still 404). Browser POSTs (calculator/save) work after a redeploy.
+
+**Not a bug:** the supporters count showing **0** (not the old 19) on the fresh dev table is expected — the
+new stack has its own empty DynamoDB table; the 19 was test data on a previous API.
+
+---
+
 ## 2026-06-29 — F1: first dev deploy of Phase R + point the web at the live dev API
 
 **Why:** deploy the new architecture (Phase R — FastAPI/Mangum, Python 3.14) to the dev AWS account and verify

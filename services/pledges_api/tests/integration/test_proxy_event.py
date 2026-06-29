@@ -89,3 +89,11 @@ class TestProxyEvent:
     def test_unknown_path_is_404(self, seeded):
         resp = handler(_event("GET", "/does-not-exist"), None)
         assert resp["statusCode"] == 404
+
+    def test_options_preflight_is_2xx_not_405(self, seeded):
+        # The browser's CORS preflight (OPTIONS) is forwarded through the ANY
+        # /{proxy+} route. It must get a 2xx so the browser allows the real POST —
+        # without the handler FastAPI returns 405, which fails the preflight.
+        # (API Gateway adds the actual CORS headers in front of this.)
+        resp = handler(_event("OPTIONS", "/calculate"), None)
+        assert resp["statusCode"] == 204
