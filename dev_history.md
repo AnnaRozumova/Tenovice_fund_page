@@ -5,6 +5,31 @@ and how it was verified. Companion to `CLAUDE.md` (developer quick-start) and `d
 
 ---
 
+## 2026-06-29 — R3: confirm the frontend is proxy-ready (no re-point needed)
+
+**Why:** R1 put the whole API behind one `ANY /{proxy+}` route — check whether the frontend's API base or
+any path needs to change to keep working.
+
+**Finding — no frontend change needed.** The proxy preserves every route path (`/stats`, `/pledges`,
+`/pledges/by-email`, `/config`, `/calculate`) and the `$default` API Gateway stage adds no base-path prefix,
+so the single API-base knob — `CONFIG.API_URL` in `web/config.js` — and every `${CONFIG.API_URL}/<path>`
+fetch in `main.js` / `pledge.js` / `admin.js` keep working unchanged. There is still exactly one API-base
+config value; a grep confirms no other hardcoded API URL in `web/`. No `web/` code was changed.
+
+**Verification:** exercised every endpoint the frontend calls against the FastAPI app behind the proxy —
+`GET /stats` `/config` `/pledges` (200), `POST /calculate` (200, correct one-time/monthly impact +
+projection), `POST /config` with a wrong/empty admin secret (401), `OPTIONS` preflight (204), and an unknown
+path (404 from FastAPI). All respond as the site expects.
+
+**Note (pre-existing, out of R3 scope):** `GET /pledges` excludes the `STATS` sentinel row but not `CONFIG`,
+so once a `CONFIG` row exists (since C1) the public list includes a phantom zero-amount pledge. Tracked
+separately as a follow-up; not changed here.
+
+This completes Phase R — **R1** (FastAPI app behind the proxy) · **R2** (Python 3.14) · **R3** (frontend
+confirmed proxy-ready). **Not deployed.**
+
+---
+
 ## 2026-06-29 — R2: Python runtime bump 3.11 → 3.14 (+ Mangum 0.19 → 0.21)
 
 **Why:** standardize on the newer, supported Lambda runtime (decision D20). Small change in principle —
