@@ -5,6 +5,42 @@ and how it was verified. Companion to `CLAUDE.md` (developer quick-start) and `d
 
 ---
 
+## 2026-06-29 — AUTH1: Cognito user pool + app client (identity store, no authorizer yet)
+
+**Why:** start Phase AUTH (D18) — the whole API incl. the calculator moves behind a login; only the home
+page stays public. First step is the **identity store** every later step builds on. Built so deploy is
+safe: **no authorizer is attached to the API**, so the API and site keep working unchanged.
+
+**What:** new `cdk/src/constructs/cognito.py` — a Cognito **user pool** + a **public (no-secret) app
+client**, wired into `stack.py` (outputs `UserPoolId` / `UserPoolClientId`). Config:
+- email is the username; **self sign-up** + **email verification**; **email-only** password recovery.
+- **strong password policy**: min 12 chars, lower + upper + digit + symbol.
+- app client: no secret, **SRP** auth flow (for custom on-site login screens via
+  `amazon-cognito-identity-js` — the chosen UI approach; see below), `prevent_user_existence_errors` on
+  (email is the identity, so don't leak whether an address is registered), tokens id/access 1 h, refresh 30 d.
+- dev pool is disposable (`DESTROY`); **prod pool is `RETAIN` + deletion-protected** (a future immutable-prop
+  change would otherwise REPLACE the pool and orphan every account).
+- built-in Cognito email sender (~50/day cap — fine at our scale; SES is a later prod follow-up).
+
+**UI approach decided = custom on-site screens (not Cognito Hosted UI).** Reasons: (1) Hosted UI callback
+URLs must be HTTPS (only `http://localhost` is exempt) and the dev site is HTTP-only until the
+CloudFront/HTTPS phase (G) — custom screens talk to Cognito directly from JS and work on HTTP now; (2) the
+requested "your email is safe" note belongs *in the registration form*, which Hosted UI can't host cleanly.
+Custom screens also reuse the site's own design.
+
+**Verification:** `cdk/src` ruff clean; the construct synthesizes to valid CloudFormation for **both** dev
+(disposable, `DeletionProtection INACTIVE`) and prod (`Retain` + `DeletionProtection ACTIVE`) via
+`assertions.Template` (no Docker needed — only the Lambda asset bundles). Services gate unaffected: **90
+passed**. Full `cdk synth`/deploy (Docker) is run at deploy time on the dev account.
+
+**Open product decision (raised, not resolved) — pre-AUTH3:** self sign-up is **open to anyone**. Once
+AUTH3 attaches the JWT authorizer, a stranger can still self-register and obtain a valid token, so the gate
+keeps out only people unwilling to register, not "randoms". If friends-only is wanted, add a pre-sign-up
+Lambda trigger (invite / email allowlist) before AUTH3. Pledges stay anonymous regardless (no names; by-email
+returns only the caller's own row).
+
+---
+
 ## 2026-06-29 — Fix: CORS preflight (OPTIONS) returned 405 → browser blocked POSTs
 
 **Why:** after the first dev deploy, the deployed site's **calculator and pledge save failed in the browser**
