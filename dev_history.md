@@ -5,6 +5,36 @@ and how it was verified. Companion to `CLAUDE.md` (developer quick-start) and `d
 
 ---
 
+## 2026-06-29 — R2: Python runtime bump 3.11 → 3.14 (+ Mangum 0.19 → 0.21)
+
+**Why:** standardize on the newer, supported Lambda runtime (decision D20). Small change in principle —
+swap `3.11` for `3.14` in the CDK runtime, the local gate/venv, the serve scripts, and the ruff target.
+
+**What changed:**
+- `cdk/src/constructs/lambdas.py` — `_lambda.Runtime.PYTHON_3_11` → `PYTHON_3_14` (both the function `runtime`
+  and the bundling `image`).
+- `check.ps1` / `check.sh` — bootstrap the local `.venv` with Python 3.14 (`py -3.14` / `python3.14`).
+- `serve.ps1` / `serve.sh` — static server on 3.14.
+- `services/pledges_api/pyproject.toml` — ruff `target-version = "py314"`.
+- `cdk/pyproject.toml` — `requires-python = ">=3.14"`.
+- `services/pledges_api/requirements.txt` + `requirements-test.txt` — **Mangum `>=0.18,<0.20` → `>=0.21,<0.22`**.
+- `tests/conftest.py` — unchanged (it carries no Python-version reference, only the moto AWS region/creds).
+
+**The catch — Mangum had to move with the runtime.** The prompt's "verify FastAPI + Mangum + moto + boto3 on
+3.14 first" caught a real incompatibility: **Mangum 0.19 fails on Python 3.14**. Its HTTP protocol calls
+`asyncio.get_event_loop()` with no running loop, which on 3.14 raises `RuntimeError` (3.14 removed the old
+behavior of silently creating one). Three proxy-event tests failed, and the live Lambda would have failed
+identically (Mangum is the entrypoint). Fix: **Mangum 0.21** (released 2026-02, declares 3.14 support; its
+`adapter.py` adds `_setup_event_loop()` — on the `RuntimeError` it creates and sets a new loop). The narrow
+`<0.20` pin had to be widened to allow it.
+
+**Verification:** quality gate green on a freshly rebuilt **Python 3.14.3** `.venv` — `ruff` clean,
+**87 passed** (the 3 `test_proxy_event.py` Mangum tests now pass on 3.14). CDK: `Runtime.PYTHON_3_14` and its
+`bundling_image` resolve in the installed `aws-cdk-lib` (full `cdk synth` needs Docker — deferred to deploy,
+same as R1). No `3.11` / `py311` / `PYTHON_3_11` references remain in tooling/code. **Not deployed.**
+
+---
+
 ## 2026-06-28 — R1: backend re-architecture — 7 Lambdas → one FastAPI app (Mangum) behind a proxy route
 
 **Why:** the backend was 7 per-endpoint Lambdas, each its own file re-creating a DynamoDB resource and

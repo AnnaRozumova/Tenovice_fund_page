@@ -32,7 +32,7 @@ and works on phone + desktop.
                 ▼
    ┌──────────────────────────┐
    │  one Lambda: FastAPI app  │   routes in api/ (stats, pledges, config,
-   │  via Mangum (Python 3.11) │   calculate); shared db/ utils/ domain/
+   │  via Mangum (Python 3.14) │   calculate); shared db/ utils/ domain/
    └────────────┬─────────────┘
                 ▼
                   ┌──────────────────────────┐
@@ -57,8 +57,8 @@ and works on phone + desktop.
 - `stack.py` — `FundraisingCalculatorStack`; composes the constructs, outputs `HttpApiUrl`.
 - `constructs/config.py` — `AppConfig` from `cdk.json` context.
 - `constructs/dynamodb.py` — Pledges table (PK `pledgeID`) + `EmailIndex` GSI on `email`.
-- `constructs/lambdas.py` — the **single API Lambda** (Python 3.11, handler `app.handler`); its asset
-  Docker-bundles FastAPI + Mangum with the source.
+- `constructs/lambdas.py` — the **single API Lambda** (Python 3.14, handler `app.handler`); its asset
+  Docker-bundles FastAPI + Mangum (≥0.21, for 3.14 event-loop support) with the source.
 - `constructs/apigw.py` — HTTP API, CORS, a single `ANY /{proxy+}` route → the API Lambda.
 - `constructs/s3_website.py` — public static-website bucket; deploys `../web`.
 

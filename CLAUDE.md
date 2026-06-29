@@ -20,7 +20,7 @@ Scale: < 1000 friends, infrequent visits → deliberately cheap, simple, low-ops
 Browser (static HTML/CSS/JS on S3)
    │  fetch() JSON over HTTPS
    ▼
-API Gateway (HTTP API, ANY /{proxy+})  ─►  one Lambda: FastAPI via Mangum (Python 3.11)  ─►  DynamoDB (one table)
+API Gateway (HTTP API, ANY /{proxy+})  ─►  one Lambda: FastAPI via Mangum (Python 3.14)  ─►  DynamoDB (one table)
    ▲
 AWS CDK (Python) describes & deploys all of the above.
 ```
@@ -41,7 +41,7 @@ AWS CDK (Python) describes & deploys all of the above.
 - `constructs/config.py` — `AppConfig`, reads context from `cdk.json` (`stage`, `project_name`,
   `api_name`, `pledges_table_name`).
 - `constructs/dynamodb.py` — Pledges table (PK `pledgeID`) + `EmailIndex` GSI on `email` (projection ALL).
-- `constructs/lambdas.py` — **the single API Lambda** (Python 3.11, handler `app.handler`); the asset is
+- `constructs/lambdas.py` — **the single API Lambda** (Python 3.14, handler `app.handler`); the asset is
   Docker-bundled (`pip install -r requirements.txt -t /asset-output && cp -r src/. /asset-output`) so
   FastAPI + Mangum ship with the code. Read-write on the table.
 - `constructs/apigw.py` — HTTP API + CORS (`GET`/`POST`/`OPTIONS`, origins `*`) + a **single** `ANY /{proxy+}`
@@ -206,10 +206,10 @@ python -m pytest tests/ -v
 
 ### Quality gate
 
-One command runs ruff + pytest (moto) on **Python 3.11** (the Lambda runtime):
+One command runs ruff + pytest (moto) on **Python 3.14** (the Lambda runtime):
 
 ```bash
-bash ./check.sh      # Linux / macOS / CI (canonical) — bootstraps a 3.11 .venv, installs deps, runs the gate
+bash ./check.sh      # Linux / macOS / CI (canonical) — bootstraps a 3.14 .venv, installs deps, runs the gate
 pwsh ./check.ps1     # Windows dev — same gate (the two share one .venv)
 make check           # Unix / CI parity — assumes ruff + deps already installed
 ```

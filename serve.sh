@@ -10,8 +10,8 @@ set -euo pipefail
 port="${1:-8000}"
 web="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/web"
 
-# Prefer python3.11 (the Lambda runtime) but fall back to any python3 / python.
-py="$(command -v python3.11 || command -v python3 || command -v python)"
+# Prefer python3.14 (the Lambda runtime) but fall back to any python3 / python.
+py="$(command -v python3.14 || command -v python3 || command -v python)"
 
 echo "Serving $web"
 echo "  -> http://localhost:$port   (Ctrl+C to stop)"

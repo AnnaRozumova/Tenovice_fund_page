@@ -32,7 +32,7 @@ class LambdasConstruct(Construct):
             self,
             "ApiFn",
             function_name=f"{config.project_name}-{config.stage}-api",
-            runtime=_lambda.Runtime.PYTHON_3_11,
+            runtime=_lambda.Runtime.PYTHON_3_14,
             handler="app.handler",
             # Bundle runtime deps + source into one asset. pip installs FastAPI/Mangum
             # into /asset-output, then the source is copied alongside them, so the
@@ -40,7 +40,7 @@ class LambdasConstruct(Construct):
             code=_lambda.Code.from_asset(
                 "../services/pledges_api",
                 bundling=BundlingOptions(
-                    image=_lambda.Runtime.PYTHON_3_11.bundling_image,
+                    image=_lambda.Runtime.PYTHON_3_14.bundling_image,
                     command=[
                         "bash",
                         "-c",

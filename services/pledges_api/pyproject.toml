@@ -1,4 +1,4 @@
 [tool.ruff]
 # Lint/format target = the Lambda runtime.
-target-version = "py311"
+target-version = "py314"
 line-length = 100

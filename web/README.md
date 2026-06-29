@@ -125,7 +125,7 @@ bash ./serve.sh          # serves web/ at http://localhost:8000 (Linux/macOS/CI)
 bash ./serve.sh 8080     # custom port
 ```
 On Windows the equivalent is `pwsh ./serve.ps1` (`-Port 8080` for a custom port). Both serve `web/` on
-Python 3.11 and send `Cache-Control: no-store` so edits show on a normal refresh.
+Python 3.14 and send `Cache-Control: no-store` so edits show on a normal refresh.
 
 The **API base is a single config value** — `CONFIG.API_URL` in `config.js`. It defaults to the live
 dev API, so the calculator shows real data locally; point it at another API if you need to.

@@ -45,4 +45,4 @@ with socketserver.TCPServer(("", port), handler) as httpd:
         pass
 '@
 
-py -3.11 -c $server
+py -3.14 -c $server

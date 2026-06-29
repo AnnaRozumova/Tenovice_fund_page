@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Local quality gate for services/pledges_api: ruff + pytest on Python 3.11 (the
+# Local quality gate for services/pledges_api: ruff + pytest on Python 3.14 (the
 # Lambda runtime). One command, no AWS.  Usage:  bash ./check.sh
 #
 # POSIX/Linux canonical form (CI + Anna/Ondra run Linux). The Windows-local
@@ -21,10 +21,10 @@ venv_bin() {
   return 1
 }
 
-# 1. Ensure a Python 3.11 venv (pin to the Lambda runtime, not the machine default).
+# 1. Ensure a Python 3.14 venv (pin to the Lambda runtime, not the machine default).
 if ! py="$(venv_bin python)"; then
-  echo "Creating .venv with Python 3.11..."
-  python3.11 -m venv "$venv"
+  echo "Creating .venv with Python 3.14..."
+  python3.14 -m venv "$venv"
   py="$(venv_bin python)"
 fi
 
