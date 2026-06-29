@@ -39,7 +39,7 @@ const TRANSLATIONS = {
     'index.totalPledgedLabel': 'Celkem přislíbeno',
     'index.supportersLabel': 'Podporovatelů',
     'index.monthlyLabel': 'Měsíční přísliby',
-    'index.ctaHeading': 'Chceš být u zrodu toho všeho?',
+    'index.ctaHeading': 'Buď srdcem toho všeho',
     'index.ctaButton': 'Přidat příslib',
 
     // Home page — dw-connect link (hero)
