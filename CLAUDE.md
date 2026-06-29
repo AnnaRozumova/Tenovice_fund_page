@@ -68,9 +68,15 @@ per-endpoint Lambdas.
 | POST | `/config` | `config.py:update_config` | **admin-only** write of the `CONFIG` row; shared-secret bearer token, constant-time compare, fails closed (C2) |
 | POST | `/calculate` | `calculate.py` | **read-only** what-if simulator (D2a); computes impact + projection vs goal from the shared pledge math; reads `STATS`/`CONFIG`, writes nothing, no auth |
 
-**Live dev API:** `https://tbaulwfk46.execute-api.eu-central-1.amazonaws.com` (region `eu-central-1`).
-It is **deployed and holds test data** — `GET /stats` →
-`{"pledged_total": 228150.0, "contributors_count": 19.0, "monthly_total": 12200.0}`.
+**Live dev API:** `https://wcu3d2uaf2.execute-api.eu-central-1.amazonaws.com` (region `eu-central-1`),
+deployed from `main` (stack `FundraisingCalculatorStack`). The table is **fresh** — `GET /stats` →
+`{"pledged_total": 0, "contributors_count": 0, "monthly_total": 0}`. (The older `tbaulwfk46…` API was a
+previous stack.) **Dev site:**
+`http://fundraising-calculator-dev-026268603137-website.s3-website.eu-central-1.amazonaws.com`.
+
+**CORS:** the browser's preflight `OPTIONS` is forwarded through the single `ANY /{proxy+}` route into the
+app; an HTTP middleware in `app.py` answers it with `204` (API Gateway adds the actual CORS headers). Without
+it FastAPI would 405 the preflight and the browser would block every `POST`.
 
 ### Email-based upsert
 Email is the identity key. The first `POST /pledges` with an email creates a pledge; a later POST with the

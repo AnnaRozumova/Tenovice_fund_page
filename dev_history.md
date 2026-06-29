@@ -41,6 +41,15 @@ returns only the caller's own row).
 
 ---
 
+## 2026-06-29 — Docs: point CLAUDE.md / architecture.md at the current live dev API
+
+`CLAUDE.md` and `docs/architecture.md` still named the old `tbaulwfk46…` dev API (with the old
+`228150 / 19 / 12200` test stats). Updated both to the current deployed dev API
+`https://wcu3d2uaf2.execute-api.eu-central-1.amazonaws.com` (fresh table → zeros) + the dev site URL, and
+documented the CORS-preflight middleware (see the CORS fix below). Docs-only; no code/behaviour change.
+
+---
+
 ## 2026-06-29 — Fix: CORS preflight (OPTIONS) returned 405 → browser blocked POSTs
 
 **Why:** after the first dev deploy, the deployed site's **calculator and pledge save failed in the browser**

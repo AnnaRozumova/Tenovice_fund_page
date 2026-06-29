@@ -82,8 +82,11 @@ One FastAPI app behind `ANY /{proxy+}`; every route lives in `services/pledges_a
 **Email-based upsert:** email is the identity key. First POST creates; a later POST with the same email
 updates, applying the delta to `STATS`. No tokens/auth — knowing the email is the ownership proof.
 
-**Live dev API:** `https://tbaulwfk46.execute-api.eu-central-1.amazonaws.com` (`eu-central-1`), deployed
-with test data. `GET /stats` → `{"pledged_total": 228150.0, "contributors_count": 19.0, "monthly_total": 12200.0}`.
+**Live dev API:** `https://wcu3d2uaf2.execute-api.eu-central-1.amazonaws.com` (`eu-central-1`), deployed from
+`main` (stack `FundraisingCalculatorStack`); the table is fresh →
+`GET /stats` → `{"pledged_total": 0, "contributors_count": 0, "monthly_total": 0}`. (The older `tbaulwfk46…`
+API was a previous stack.) Dev site:
+`http://fundraising-calculator-dev-026268603137-website.s3-website.eu-central-1.amazonaws.com`.
 
 ## Data model
 
