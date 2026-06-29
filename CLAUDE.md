@@ -47,6 +47,11 @@ AWS CDK (Python) describes & deploys all of the above.
 - `constructs/apigw.py` — HTTP API + CORS (`GET`/`POST`/`OPTIONS`, origins `*`) + a **single** `ANY /{proxy+}`
   route → the API Lambda (FastAPI does the per-endpoint routing).
 - `constructs/s3_website.py` — public S3 static-website bucket; deploys `../web` and outputs the URL.
+- `constructs/cognito.py` — Cognito **user pool + public (no-secret) app client** for site login (AUTH1,
+  D18): email sign-in, self sign-up + email verification, email-only password recovery, 12-char strong
+  password policy; SRP flow for custom on-site screens. **Identity store only** — no API authorizer is
+  attached yet (that lands in AUTH3), so the API stays open and behavior is unchanged. Prod pool is
+  retained + deletion-protected; dev is disposable. Outputs `UserPoolId` / `UserPoolClientId`.
 
 ## API — 7 routes (one FastAPI app behind `ANY /{proxy+}`)
 
