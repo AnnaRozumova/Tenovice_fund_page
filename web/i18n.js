@@ -208,7 +208,7 @@ const TRANSLATIONS = {
     'index.totalPledgedLabel': 'Total Pledged',
     'index.supportersLabel': 'Supporters',
     'index.monthlyLabel': 'Monthly Recurring',
-    'index.ctaHeading': 'Do you want to be a heart of it?',
+    'index.ctaHeading': 'Be heart of it',
     'index.ctaButton': 'Make a Pledge',
 
     // Home page — dw-connect link (hero)
