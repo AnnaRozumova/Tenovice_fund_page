@@ -5,6 +5,41 @@ and how it was verified. Companion to `CLAUDE.md` (developer quick-start) and `d
 
 ---
 
+## 2026-06-30 — Password policy relaxed + calculator takes a number of months (frontend + Cognito)
+
+**Why:** Two product tweaks (Martin). (1) The 12-char + symbol password rule was needlessly strict for a
+< 1000-friends login → relax to **10 chars with an uppercase, a lowercase and a digit, no symbol**. (2) The
+monthly pledge made the user pick an **end month + year**; replace it with a single **"number of months"**
+input (friendlier — "I'd contribute for N months").
+
+**What — password (Cognito + frontend):**
+- **`cdk/src/constructs/cognito.py`** — `PasswordPolicy`: `min_length 12 → 10`, `require_symbols → False`
+  (lowercase/uppercase/digit stay required). The user pool is the authority; needs a `cdk deploy` to take effect.
+- **`web/auth.js`** — `PASSWORD_MIN 12 → 10`, dropped the symbol check from `passwordPolicyError` (the
+  browser-side mirror of the policy, for instant feedback before the network round-trip).
+- **`web/i18n.js`** (CZ+EN) + **`web/auth.html`** — `auth.passwordHint` / `auth.errPasswordPolicy` reworded.
+
+**What — calculator (frontend only, backend math untouched, D8):**
+- **`web/pledge.html`** — in **both** the simulator (`#simMonthlyFields`) and the pledge form
+  (`#monthlyFields`), the month `<select>` + year `<input>` are replaced by one number input
+  (`#simMonths` / `#months`, `min=1 max=600`).
+- **`web/pledge.js`** — new `monthsToEndDate(n)` / `endDateToMonths(m,y)` convert at the **input boundary**:
+  the backend still owns the impact math and works in an absolute `end_month`/`end_year`, so the form sends a
+  derived end date and pre-fills the edit form by converting the stored date back to remaining months. The
+  backend counts months **inclusively** from the current month, so `N` months ⇒ end = current month + (N−1).
+  Removed `isEndDateInPast` + the past/year/month validators (a `min=1` months value can never be in the
+  past, so the backend `reject_past` guard — kept — never fires); monthly validation is now `1 ≤ months ≤ 600`.
+- **`web/i18n.js`** — added `pledge.months` / `pledge.monthsHint` / `pledge.errMonths` (CZ+EN); removed 20
+  now-dead keys (`month.1`–`month.12`, `pledge.endMonth/endYear/selectMonth`,
+  `pledge.errEndMonth/errEndYear/errEndPast`, `sim.errEndDate`). i18n parity holds (155 keys/lang).
+
+**Verified:** ruff clean (cdk + services); **122 passed** (services pytest, unchanged — no backend code
+touched); i18n parity 155; `node --check` on all changed JS; no dangling refs to the removed DOM ids/keys.
+`/code-review` high — no findings. **Not deployed** — password change needs `cdk deploy` (Cognito); the web
+changes ride the same deploy (served from S3).
+
+---
+
 ## 2026-06-30 — Returning-user UX: one page instead of a two-step gate (frontend)
 
 **Why:** A returning pledger saw a separate "Existing pledge found" review card with an "Edit" button, and

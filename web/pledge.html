@@ -93,28 +93,11 @@
               </div>
             </div>
 
-            <div id="simMonthlyFields" class="form-grid form-grid-2 hidden" aria-hidden="true">
+            <div id="simMonthlyFields" class="hidden" aria-hidden="true">
               <div class="form-field">
-                <label for="simEndMonth" data-i18n="pledge.endMonth">End month</label>
-                <select id="simEndMonth">
-                  <option value="" data-i18n="pledge.selectMonth">Select month</option>
-                  <option value="1" data-i18n="month.1">January</option>
-                  <option value="2" data-i18n="month.2">February</option>
-                  <option value="3" data-i18n="month.3">March</option>
-                  <option value="4" data-i18n="month.4">April</option>
-                  <option value="5" data-i18n="month.5">May</option>
-                  <option value="6" data-i18n="month.6">June</option>
-                  <option value="7" data-i18n="month.7">July</option>
-                  <option value="8" data-i18n="month.8">August</option>
-                  <option value="9" data-i18n="month.9">September</option>
-                  <option value="10" data-i18n="month.10">October</option>
-                  <option value="11" data-i18n="month.11">November</option>
-                  <option value="12" data-i18n="month.12">December</option>
-                </select>
-              </div>
-              <div class="form-field">
-                <label for="simEndYear" data-i18n="pledge.endYear">End year</label>
-                <input id="simEndYear" type="number" min="2026" step="1" placeholder="2030">
+                <label for="simMonths" data-i18n="pledge.months">Number of months</label>
+                <span class="field-hint" data-i18n="pledge.monthsHint">For how many months you would contribute (from now).</span>
+                <input id="simMonths" type="number" min="1" max="600" step="1" placeholder="12">
               </div>
             </div>
 
@@ -193,28 +176,11 @@
               </label>
             </div>
 
-            <div id="monthlyFields" class="form-grid form-grid-2 hidden" aria-hidden="true">
+            <div id="monthlyFields" class="hidden" aria-hidden="true">
               <div class="form-field">
-                <label for="end_month" data-i18n="pledge.endMonth">End month</label>
-                <select id="end_month" name="end_month">
-                  <option value="" data-i18n="pledge.selectMonth">Select month</option>
-                  <option value="1" data-i18n="month.1">January</option>
-                  <option value="2" data-i18n="month.2">February</option>
-                  <option value="3" data-i18n="month.3">March</option>
-                  <option value="4" data-i18n="month.4">April</option>
-                  <option value="5" data-i18n="month.5">May</option>
-                  <option value="6" data-i18n="month.6">June</option>
-                  <option value="7" data-i18n="month.7">July</option>
-                  <option value="8" data-i18n="month.8">August</option>
-                  <option value="9" data-i18n="month.9">September</option>
-                  <option value="10" data-i18n="month.10">October</option>
-                  <option value="11" data-i18n="month.11">November</option>
-                  <option value="12" data-i18n="month.12">December</option>
-                </select>
-              </div>
-              <div class="form-field">
-                <label for="end_year" data-i18n="pledge.endYear">End year</label>
-                <input id="end_year" name="end_year" type="number" min="2026" step="1" placeholder="2026">
+                <label for="months" data-i18n="pledge.months">Number of months</label>
+                <span class="field-hint" data-i18n="pledge.monthsHint">For how many months you would contribute (from now).</span>
+                <input id="months" name="months" type="number" min="1" max="600" step="1" placeholder="12">
               </div>
             </div>
 

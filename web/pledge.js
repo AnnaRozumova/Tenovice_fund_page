@@ -51,14 +51,29 @@ function hideError(elementId) {
   element.classList.add('hidden');
 }
 
-// (end_year, end_month) strictly before (now.year, now.month) — mirrors the
-// backend reject_past check. Used only for input validation, not for any impact
-// math (that lives on the backend).
-function isEndDateInPast(month, year) {
+// The monthly forms take a number of months ("I'd contribute for N months from
+// now"), which is friendlier than picking an end month + year. The backend still
+// owns the impact math and works in an absolute (end_month, end_year) — D8 — so we
+// only convert N <-> (end_month, end_year) at the input boundary, here. The backend
+// counts remaining months inclusively from the current month, so N months ends
+// (N - 1) months after the current one. This is input prep, not impact math.
+const MAX_MONTHS = 600;
+
+function monthsToEndDate(months) {
   const now = new Date();
-  const currentMonth = now.getMonth() + 1;
-  const currentYear = now.getFullYear();
-  return year < currentYear || (year === currentYear && month < currentMonth);
+  const zeroBased = now.getMonth() + (months - 1); // 0-indexed current month + (N-1)
+  return {
+    end_month: (zeroBased % 12) + 1,
+    end_year: now.getFullYear() + Math.floor(zeroBased / 12),
+  };
+}
+
+// Reverse: how many months from the current month up to a stored end date (inclusive),
+// used to pre-fill the edit form. Floored at 1 so a returning user never sees 0/blank.
+function endDateToMonths(endMonth, endYear) {
+  const now = new Date();
+  const months = (endYear - now.getFullYear()) * 12 + (endMonth - (now.getMonth() + 1)) + 1;
+  return months > 0 ? months : 1;
 }
 
 // ============ Stats / config-driven chrome ============
@@ -169,9 +184,8 @@ function renderSimResult(result) {
 function getSimInputs() {
   const people = parseInt($('simPeople').value, 10);
   const amount = Number($('simAmount').value);
-  const endMonth = parseInt($('simEndMonth').value, 10);
-  const endYear = parseInt($('simEndYear').value, 10);
-  return { people, amount, endMonth, endYear };
+  const months = parseInt($('simMonths').value, 10);
+  return { people, amount, months };
 }
 
 function validateSimInputs(values) {
@@ -182,8 +196,8 @@ function validateSimInputs(values) {
     return t('sim.errInputs');
   }
   if (simIsMonthly) {
-    if (!values.endMonth || values.endMonth < 1 || values.endMonth > 12 || !values.endYear) {
-      return t('sim.errEndDate');
+    if (!Number.isFinite(values.months) || values.months < 1 || values.months > MAX_MONTHS) {
+      return t('pledge.errMonths');
     }
   }
   return '';
@@ -205,8 +219,9 @@ async function runCalculate() {
     is_monthly: simIsMonthly,
   };
   if (simIsMonthly) {
-    payload.end_month = values.endMonth;
-    payload.end_year = values.endYear;
+    const end = monthsToEndDate(values.months);
+    payload.end_month = end.end_month;
+    payload.end_year = end.end_year;
   }
 
   const button = $('simCalcButton');
@@ -252,8 +267,7 @@ function getPledgeValues() {
   return {
     amount: Number($('amount').value),
     is_monthly: $('is_monthly').checked,
-    end_month: parseInt($('end_month').value, 10),
-    end_year: parseInt($('end_year').value, 10),
+    months: parseInt($('months').value, 10),
     message: $('message').value.trim(),
   };
 }
@@ -269,14 +283,8 @@ function validatePledgeForm(values) {
     return t('pledge.errMessageMax', { max: MAX_MESSAGE_LENGTH });
   }
   if (values.is_monthly) {
-    if (!values.end_month || values.end_month < 1 || values.end_month > 12) {
-      return t('pledge.errEndMonth');
-    }
-    if (!values.end_year || values.end_year < new Date().getFullYear()) {
-      return t('pledge.errEndYear');
-    }
-    if (isEndDateInPast(values.end_month, values.end_year)) {
-      return t('pledge.errEndPast');
+    if (!Number.isFinite(values.months) || values.months < 1 || values.months > MAX_MONTHS) {
+      return t('pledge.errMonths');
     }
   }
   return '';
@@ -292,8 +300,9 @@ function buildPayload(values) {
     payload.message = values.message;
   }
   if (values.is_monthly) {
-    payload.end_month = values.end_month;
-    payload.end_year = values.end_year;
+    const end = monthsToEndDate(values.months);
+    payload.end_month = end.end_month;
+    payload.end_year = end.end_year;
   }
   return payload;
 }
@@ -353,8 +362,12 @@ function setFormModeText() {
 function fillPledgeForm(values) {
   $('amount').value = Number(values.amount || 0) || '';
   $('is_monthly').checked = Boolean(values.is_monthly);
-  $('end_month').value = values.end_month ? String(values.end_month) : '';
-  $('end_year').value = values.end_year ? String(values.end_year) : '';
+  // The pledge is stored with an absolute end month/year; show it as the remaining
+  // number of months (the input the form now uses).
+  $('months').value =
+    values.is_monthly && values.end_month && values.end_year
+      ? String(endDateToMonths(values.end_month, values.end_year))
+      : '';
   $('message').value = values.message || '';
   toggleMonthlyFields();
 }

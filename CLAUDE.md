@@ -7,7 +7,7 @@ next, see `dev_history.md`; for a fuller architecture write-up, see `docs/archit
 ## Project overview
 
 A small public-facing **fundraising pledge calculator** for the Tenovice project. A visitor enters an
-intended gift (one-time, or monthly until a chosen month/year) and sees live how it moves the campaign
+intended gift (one-time, or monthly for a chosen number of months) and sees live how it moves the campaign
 total toward the goal. Pledges are stored **anonymously** so other visitors are inspired to add their
 own. **No real money moves through the site** — a pledge is a public promise; bank/QR payment details
 are shown afterwards so the person sends the money themselves.
@@ -60,8 +60,8 @@ AWS CDK (Python) describes & deploys all of the above.
   preflight carries no token). The `$default` stage gets **throttling** (rate 20 / burst 40, both envs).
 - `constructs/s3_website.py` — public S3 static-website bucket; deploys `../web` and outputs the URL.
 - `constructs/cognito.py` — Cognito **user pool + public (no-secret) app client** for site login (AUTH1,
-  D18): email sign-in, self sign-up + email verification, email-only password recovery, 12-char strong
-  password policy; SRP flow for custom on-site screens. Also wires a **Custom Message Lambda**
+  D18): email sign-in, self sign-up + email verification, email-only password recovery, 10-char password
+  policy (uppercase + lowercase + digit, no symbol required); SRP flow for custom on-site screens. Also wires a **Custom Message Lambda**
   (`services/cognito_custom_message/`, pure stdlib, no bundling) as the pool's `custom_message` trigger —
   it localizes the verification / reset emails to **CZ or EN** by the user's `locale` attribute (set at
   sign-up from the site language; default CZ), covering sign-up / resend / forgot-password (AUTH2).
@@ -149,7 +149,9 @@ drift (decision D8/D15). Consolidated into `domain/pledge_math.py` in D2a.
 
 > The frontend holds **no copy** of this math (removed in D2). `web/pledge.js` calls `POST /calculate` on the
 > "Spočítat" button and only *displays* the returned result; it does not recompute anything (single source of
-> truth, D8/D15). The only date logic left in JS is an input check that a monthly end date isn't in the past.
+> truth, D8/D15). The monthly form collects a **number of months**, not an end date; `pledge.js` converts it
+> to the backend's `end_month`/`end_year` at the input boundary (and back, to pre-fill the edit form) — input
+> prep only, not impact math.
 
 ## Currency — CZK canonical, converted at the boundary (D22)
 

@@ -68,15 +68,15 @@ class CognitoConstruct(Construct):
             standard_attributes=cognito.StandardAttributes(
                 email=cognito.StandardAttribute(required=True, mutable=True),
             ),
-            # Strong baseline (Martin's call): 12+ chars with all four character
-            # classes. Stricter than Cognito's 8-char default; aligns with common
-            # "strong password" guidance for a public-facing login.
+            # Baseline (Martin's call): 10+ chars with an uppercase, a lowercase and
+            # a digit — no symbol required. Stricter than Cognito's 8-char default but
+            # easier to remember for a < 1000-friends login than a 12-char + symbol rule.
             password_policy=cognito.PasswordPolicy(
-                min_length=12,
+                min_length=10,
                 require_lowercase=True,
                 require_uppercase=True,
                 require_digits=True,
-                require_symbols=True,
+                require_symbols=False,
             ),
             # "Forgot password" recovery goes to the verified email only.
             account_recovery=cognito.AccountRecovery.EMAIL_ONLY,
