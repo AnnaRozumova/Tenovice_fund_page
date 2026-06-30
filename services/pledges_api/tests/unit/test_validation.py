@@ -102,6 +102,23 @@ class TestValidateConfigInput:
         with pytest.raises(ValueError, match="whole number"):
             validate_config_input(cfg)
 
+    def test_exchange_rate_is_optional(self):
+        """D22: an omitted rate isn't in the result (the write path preserves it)."""
+        result = validate_config_input(_valid_config())
+        assert "exchange_rate" not in result
+
+    def test_exchange_rate_accepts_a_fractional_positive_value(self):
+        """D22: the rate is a rate, not a whole-koruna amount, so 24.22 is valid."""
+        cfg = _valid_config()
+        cfg["exchange_rate"] = 24.22
+        assert validate_config_input(cfg)["exchange_rate"] == Decimal("24.22")
+
+    def test_exchange_rate_must_be_positive(self):
+        cfg = _valid_config()
+        cfg["exchange_rate"] = 0
+        with pytest.raises(ValueError, match="greater than 0"):
+            validate_config_input(cfg)
+
 
 class TestValidatePledgeInput:
     """Test validate_pledge_input function"""

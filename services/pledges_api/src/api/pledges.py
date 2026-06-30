@@ -16,7 +16,9 @@ from boto3.dynamodb.conditions import Key
 from botocore.exceptions import ClientError
 from fastapi import APIRouter, Request
 
+from api.config import localize, read_exchange_rate
 from db import get_table
+from domain.currency import CANONICAL_CURRENCY, convert_fields, normalize_amount, parse_currency
 from domain.models import Pledge
 from domain.pledge_math import calculate_pledge_values
 from domain.validation import validate_pledge_input
@@ -40,7 +42,8 @@ PLEDGE_FIELDS = (
 
 
 @router.get("/pledges")
-def list_pledges():
+def list_pledges(currency: str | None = None):
+    currency = parse_currency(currency)
     table = get_table()
     try:
         items = table.scan().get("Items", [])
@@ -60,13 +63,18 @@ def list_pledges():
             if item.get("pledgeID") not in ("STATS", "CONFIG")
         ]
         pledges.sort(key=lambda pledge: pledge.get("created_at") or "", reverse=True)
-        return json_response(200, {"pledges": pledges})
+        if currency != CANONICAL_CURRENCY:
+            rate = read_exchange_rate(table)
+            for pledge in pledges:
+                convert_fields(pledge, ("amount", "campaign_total"), currency, rate)
+        return json_response(200, {"pledges": pledges, "currency": currency})
     except ClientError:
         return json_response(500, {"error": "Failed to list pledges"})
 
 
 @router.get("/pledges/by-email")
-def get_pledge_by_email(email: str | None = None):
+def get_pledge_by_email(email: str | None = None, currency: str | None = None):
+    currency = parse_currency(currency)
     if not email:
         return json_response(400, {"message": "email query parameter is required"})
 
@@ -86,22 +94,33 @@ def get_pledge_by_email(email: str | None = None):
 
     item = items[0]
     projected = {field: item[field] for field in PLEDGE_FIELDS if field in item}
-    return json_response(200, projected)
+    return json_response(200, localize(table, projected, ("amount", "campaign_total"), currency))
 
 
 @router.post("/pledges")
 async def create_or_update_pledge(request: Request):
+    currency = parse_currency(request.query_params.get("currency"))
     try:
         body = json.loads(await request.body() or b"{}")
     except json.JSONDecodeError:
         return json_response(400, {"error": "Invalid JSON in request body"})
+
+    table = get_table()
+
+    # Normalize the incoming amount to the canonical currency (CZK) before validating,
+    # so the cap and the stored value are always in whole koruna (D22).
+    if currency != CANONICAL_CURRENCY:
+        try:
+            rate = read_exchange_rate(table)
+        except ClientError:
+            return json_response(500, {"error": "Failed to process pledge"})
+        normalize_amount(body, currency, rate)
 
     try:
         validated = validate_pledge_input(body)
     except ValueError as e:
         return json_response(400, {"error": str(e)})
 
-    table = get_table()
     try:
         existing_pledge = _find_pledge_by_email(table, validated["email"])
         if existing_pledge:

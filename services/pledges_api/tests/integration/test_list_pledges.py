@@ -66,7 +66,8 @@ class TestListPledges:
         client, _ = client_and_table
         resp = client.get("/pledges")
         assert resp.status_code == 200
-        assert resp.json() == {"pledges": []}
+        # The list carries a currency tag now (D22); default is canonical CZK.
+        assert resp.json() == {"pledges": [], "currency": "czk"}
 
     def test_real_pledge_listed_sentinels_excluded(self, client_and_table):
         """A real pledge is returned; the STATS/CONFIG sentinels are not, nor is the email."""

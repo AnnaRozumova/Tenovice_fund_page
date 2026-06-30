@@ -98,7 +98,7 @@ Primary key `pledgeID` (String). GSI `EmailIndex` on `email` (projection ALL) fo
 **Pledge row** (`domain/models.py` → `Pledge`):
 - `pledgeID` — UUID
 - `email` — lowercased (the only identity field; never displayed, never on public endpoints)
-- `amount` — pledge amount in EUR (one-time amount, or per-month amount if monthly); 1–100,000
+- `amount` — pledge amount in **canonical CZK** (one-time amount, or per-month amount if monthly); 1–2,500,000. The API converts to EUR at the boundary by `?currency=` (D22)
 - `is_monthly` — bool
 - `campaign_total` — the pledge's total campaign impact (see "Pledge math"); stored so it stays stable as months pass
 - `created_at` — ISO timestamp
@@ -117,7 +117,7 @@ Primary key `pledgeID` (String). GSI `EmailIndex` on `email` (projection ALL) fo
 - `updated_at`
 
 **`CONFIG` row** (`pledgeID="CONFIG"`, added C1) — the editable campaign numbers served by `GET /config`:
-- `current_balance`, `fundraising_goal` — EUR
+- `current_balance`, `fundraising_goal` — canonical **CZK**; `exchange_rate` — CZK per EUR (D22, admin-editable)
 - `breakdown` — list of `{key, amount}`; `key` is a stable identifier (`new_gompa`, `sangha_house`,
   `basecamp_north`) — localized labels live in the frontend i18n dict, not the DB
 - `get_config` falls back to documented defaults when the row is absent. The row is written by the
@@ -144,11 +144,28 @@ drift (decision D8/D15). Consolidated into `domain/pledge_math.py` in D2a.
 > "Spočítat" button and only *displays* the returned result; it does not recompute anything (single source of
 > truth, D8/D15). The only date logic left in JS is an input check that a monthly end date isn't in the past.
 
+## Currency — CZK canonical, converted at the boundary (D22)
+
+DynamoDB stores every amount in **canonical CZK** (the campaign's real bank account is in koruna). The
+API converts to the currency the caller asks for via a `?currency=czk|eur` query param the frontend sends
+per page language (CZ → `czk`, EN → `eur`). **Read** routes convert canonical CZK → the requested currency
+and tag the response with `currency`; **write** routes (`POST /pledges`, `POST /calculate`) normalize the
+incoming amount → canonical CZK first. No param / `czk` → koruna unchanged. The conversion lives once in
+`domain/currency.py` (`parse_currency`, `to_display`, `to_canonical`, `convert_fields`, `normalize_amount`);
+the rate is read once via `api/config.py` `read_exchange_rate` / `exchange_rate_of`, and flat responses go
+through `localize()`. Amounts round to whole units; **percentages and `contributors_count` are never
+converted** (currency-invariant). The save path rounds to whole CZK (a stored pledge is one canonical value,
+kept whole/consistent in CZK); the read-only simulator (`/calculate`) keeps full precision internally and
+rounds only the output fields, so per-person rounding isn't amplified by the people/months multiplier. The
+exchange rate (CZK per EUR, default 24.22) lives in the `CONFIG` row next to `current_balance`; admin edits
+it (for now via the AWS console, D22-storage). **Frontend wiring (sending `?currency=`, currency symbols) is
+Phase B** — deploy the backend + frontend currency changes together.
+
 ## JSON encoding note
 
 Routes return JSON through the **shared** `json_response(status, body)` in
 `services/pledges_api/src/utils/http.py` — a `DecimalJSONResponse` that reuses `DecimalEncoder` from
-`utils/response.py`. The encoder serializes DynamoDB `Decimal` as `int` when whole, else `float` (EUR
+`utils/response.py`. The encoder serializes DynamoDB `Decimal` as `int` when whole, else `float` (CZK
 amounts and counts display as integers). One shared place — don't reintroduce per-route encoders.
 (Mangum builds the Lambda-proxy response envelope, so the old hand-rolled `response()` envelope was removed
 in R1; `utils/response.py` now holds only `DecimalEncoder`.)
@@ -163,7 +180,8 @@ stored **as-is (no hashing)**, used only to recognize a returning pledger so the
 **B2:** stats canonicalized on `contributors_count` end-to-end (removed the frontend `pledgers_count`
 reads); all four handlers route through the shared `utils/response.py` (no more per-handler encoders).
 
-**B3 — input caps** (`domain/validation.py` constants): `amount` ≤ `MAX_AMOUNT` (100,000),
+**B3 — input caps** (`domain/validation.py` constants): `amount` ≤ `MAX_AMOUNT` (2,500,000 **CZK** since D22;
+~€100k — an EUR amount is normalized to CZK before this cap applies),
 `message` ≤ `MAX_MESSAGE_LENGTH` (500 chars); min ≥ 1. Over-cap input is rejected with a clear error. Caps
 are **provisional** and move into the editable `CONFIG` row in Phase C. Caps are enforced **server-side
 only** for now; mirroring them in the form is deferred to D2.
@@ -277,7 +295,7 @@ tooling and stays English. **Parity gate:** every language must define the same 
   constant-time compare; never logged. Editing happens over **HTTPS only** via `web/admin.html`.
 - **Frontend** (`web/config.js`): `API_URL`, a `COGNITO` block (`USER_POOL_ID` / `CLIENT_ID` / `REGION` for
   the login screens, AUTH2 — per-stage like `API_URL`), plus `CURRENT_BALANCE` / `FUNDRAISING_GOAL` /
-  `BREAKDOWN` as **fallback defaults** (EUR). `loadConfig()` fetches `GET /config` on page load and overrides them (C1);
+  `BREAKDOWN` as **fallback defaults** (canonical CZK, D22). `loadConfig()` fetches `GET /config` on page load and overrides them (C1);
   the hardcoded values are used only if that request fails. `web/admin.html` + `admin.js` (C2) edit the
   numbers: paste the secret, prefill from `GET /config`, save via `POST /config`.
   The home page shows a discreet link to the members-only dw-connect project page (D3); the project is

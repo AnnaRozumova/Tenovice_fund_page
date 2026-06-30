@@ -162,7 +162,7 @@ class TestCalculate:
         assert resp.status_code == 200
         body = resp.json()
         assert body["current_total"] == 0
-        assert body["goal"] == 2700000  # documented default goal
+        assert body["goal"] == 70000000  # documented default goal, now canonical CZK (D22)
         assert body["projected_total"] == 1000
         assert body["baseline_progress_pct"] == 0
 
