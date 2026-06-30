@@ -3,7 +3,7 @@
 // Fetch and display pledges statistics
 async function loadPledgesStats() {
   try {
-    const response = await fetch(`${CONFIG.API_URL}/stats`);
+    const response = await fetch(`${CONFIG.API_URL}${withCurrency('/stats')}`);
 
     if (!response.ok) {
       throw new Error('Failed to fetch stats');
@@ -61,7 +61,14 @@ async function init() {
   // Show "Signed in as … · Sign out" when a session exists; keep its label in sync
   // with the language toggle.
   await renderAuthStatus('homeAuth');
-  document.addEventListener('i18n:changed', () => renderAuthStatus('homeAuth'));
+  // A language switch also switches the currency (D22): re-fetch the config + stats
+  // so the amounts come back in the new currency, and re-render the chrome.
+  document.addEventListener('i18n:changed', async () => {
+    renderAuthStatus('homeAuth');
+    await loadConfig();
+    updateProgressBar();
+    await loadPledgesStats();
+  });
 }
 
 // Run when DOM is ready
