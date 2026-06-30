@@ -7,7 +7,7 @@ Architecture reference for the Tenovice fundraising pledge calculator. Companion
 ## What the app is
 
 A static website where friends of the Tenovice project enter a pledge — a one-time gift, or a monthly
-amount until a chosen month/year — and see live how it moves the campaign total toward the goal. Pledges
+amount for a chosen number of months — and see live how it moves the campaign total toward the goal. Pledges
 are stored **anonymously**; the running totals inspire the next visitor. No real money moves through the
 site: after pledging, the visitor is shown bank details + QR codes and sends the money themselves.
 
@@ -145,7 +145,9 @@ never drift (D8/D15; consolidated in D2a).
 CZK** and converted to the requested currency (`?currency=czk|eur`) at the API boundary (D22), integer display.
 
 > The frontend holds **no copy** of this math (removed in D2): `web/pledge.js` calls `POST /calculate` on the
-> "Spočítat" button and only *displays* the returned result — single source of truth (D8/D15).
+> "Spočítat" button and only *displays* the returned result — single source of truth (D8/D15). The monthly
+> form collects a **number of months**; `pledge.js` converts it to `end_month`/`end_year` at the input
+> boundary (and back, to pre-fill the edit form) — input prep, not impact math.
 
 ## Privacy model
 

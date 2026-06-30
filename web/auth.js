@@ -8,10 +8,10 @@
 
 const { CognitoUser, AuthenticationDetails, CognitoUserAttribute } = AmazonCognitoIdentity;
 
-// Mirror of the backend EMAIL_RE and the Cognito password policy (12+ chars with
-// all four character classes, AUTH1) so junk is caught before a network round-trip.
+// Mirror of the backend EMAIL_RE and the Cognito password policy (10+ chars with an
+// uppercase, a lowercase and a digit, AUTH1) so junk is caught before a network round-trip.
 const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
-const PASSWORD_MIN = 12;
+const PASSWORD_MIN = 10;
 
 // The view to land on (?view=login|register|...) and where to go after login.
 const params = new URLSearchParams(window.location.search);
@@ -107,8 +107,7 @@ function passwordPolicyError(pw) {
     pw.length < PASSWORD_MIN ||
     !/[a-z]/.test(pw) ||
     !/[A-Z]/.test(pw) ||
-    !/[0-9]/.test(pw) ||
-    !/[^A-Za-z0-9]/.test(pw)
+    !/[0-9]/.test(pw)
   ) {
     return t('auth.errPasswordPolicy');
   }
