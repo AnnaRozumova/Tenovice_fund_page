@@ -12,43 +12,27 @@
       <div class="logo">
         <img src="images/logo_kagyu.svg" data-i18n-alt="common.logoAlt" alt="Karma Kagyu buddhism">
       </div>
+      <div class="auth-status pledge-authbar hidden" id="pledgeAuth"></div>
     </header>
 
-    <!-- ============ STEP 1: email lookup ============ -->
-    <section class="page-hero lookup-hero" id="lookupHero">
+    <!-- Login gate (AUTH2): pledging requires an account. While we confirm the
+         session and load any existing pledge this card shows; a signed-out visitor
+         is redirected to auth.html. The email-lookup step is gone — identity is the
+         signed-in account. -->
+    <section class="lookup-card auth-loading center" id="authLoading">
+      <p class="section-intro" id="authLoadingText" data-i18n="pledge.checkingSignIn">Checking your sign-in…</p>
+      <div id="authLoadingError" class="hidden">
+        <div class="form-message form-message-error" data-i18n="pledge.errLookup">Could not load your pledge. Please try again.</div>
+        <button type="button" class="cta-button" id="authRetryButton" data-i18n="pledge.retry">Try again</button>
+      </div>
+    </section>
+
+    <section id="existingPledgeCard" class="existing-pledge-card hidden">
       <div class="lang-toggle corner" role="group" data-i18n-aria-label="common.langLabel" aria-label="Language">
         <button type="button" class="lang-btn" data-set-lang="cs">CS</button>
         <span class="lang-sep" aria-hidden="true">·</span>
         <button type="button" class="lang-btn" data-set-lang="en">EN</button>
       </div>
-      <p class="page-eyebrow" data-i18n="pledge.eyebrow">Tenovice Fundraising</p>
-      <h1 data-i18n="pledge.title">Make your pledge</h1>
-      <p class="page-description" data-i18n="pledge.description">
-        First enter your email. If you already made a pledge, you can review it and decide whether to update it.
-      </p>
-      <a class="text-link lookup-back" href="index.html" data-i18n="common.backHomeArrow">← Back to homepage</a>
-    </section>
-
-    <section class="lookup-card" id="lookupCard">
-      <h2 data-i18n="pledge.lookupHeading">Start with your email</h2>
-      <p class="section-intro" data-i18n="pledge.lookupIntro">We will check whether you already have a pledge in the system.</p>
-
-      <div class="form-grid form-grid-2 lookup-grid">
-        <div class="form-field">
-          <label for="lookupEmail" data-i18n="pledge.emailLabel">Email</label>
-          <input id="lookupEmail" name="lookupEmail" type="email" required>
-        </div>
-      </div>
-
-      <div id="lookupError" class="form-message form-message-error hidden" role="alert"></div>
-
-      <div class="form-actions center-actions">
-        <button type="button" class="cta-button form-submit-button" id="lookupButton" data-i18n="pledge.continue">Continue</button>
-        <a class="secondary-button" href="index.html" data-i18n="common.cancel">Cancel</a>
-      </div>
-    </section>
-
-    <section id="existingPledgeCard" class="existing-pledge-card hidden">
       <h2 data-i18n="pledge.existingHeading">Existing pledge found</h2>
       <p class="section-intro" data-i18n="pledge.existingIntro">We found a pledge for this email. You can review it and choose whether to update it.</p>
 
@@ -299,6 +283,8 @@
 
   <script src="i18n.js"></script>
   <script src="config.js"></script>
+  <script src="vendor/amazon-cognito-identity.min.js"></script>
+  <script src="auth-common.js"></script>
   <script src="pledge.js"></script>
 </body>
 </html>

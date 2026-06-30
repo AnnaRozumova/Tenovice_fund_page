@@ -969,51 +969,26 @@ body {
   margin: 40px 0;
 }
 
-.lookup-grid {
-  margin-bottom: 20px;
+/* The existing-pledge card can be the first thing a returning user sees, so it
+   carries its own corner language toggle (AUTH2) — anchor it and add top room so
+   the toggle clears the centered heading. */
+.existing-pledge-card {
+  position: relative;
+  padding-top: 44px;
 }
 
-/* Lookup step — centered to match the calc page; email input sized down */
-
-/* Constrain the lookup-step cards so they don't stretch full width around the
-   centered content (keeps the step visually balanced, like the pledge card). */
-.lookup-hero,
-#lookupCard,
+/* Constrain the gate + existing-pledge cards so they don't stretch full width
+   around the centered content (keeps them visually balanced, like the pledge card). */
+#authLoading,
 #existingPledgeCard {
   max-width: 600px;
   margin-left: auto;
   margin-right: auto;
 }
 
-.lookup-hero {
-  text-align: center;
-}
-
-.lookup-hero .page-description {
-  max-width: 520px;
-  margin: 0 auto;
-}
-
-.lookup-hero .lookup-back {
-  display: inline-block;
-  margin-top: 18px;
-}
-
 .lookup-card,
 .existing-pledge-card {
   text-align: center;
-}
-
-#lookupCard .lookup-grid {
-  grid-template-columns: 1fr;
-  max-width: 360px;
-  margin: 0 auto 20px;
-}
-
-#lookupCard .form-message {
-  max-width: 360px;
-  margin-left: auto;
-  margin-right: auto;
 }
 
 #existingPledgeCard .existing-pledge-summary {
@@ -1440,4 +1415,121 @@ body {
   .sim-big-amount {
     font-size: 2.3rem;
   }
+}
+
+/* ============================================================
+   Auth screens (AUTH2): login / register / confirm / forgot /
+   reset — one centered card, views toggled in JS. Reuses the
+   shared .form-field / .cta-button / .form-message styles.
+   ============================================================ */
+
+.auth-card {
+  background: var(--bg-white);
+  border-radius: var(--border-radius);
+  box-shadow: var(--shadow);
+  padding: 36px 32px;
+  margin: 40px auto;
+  max-width: 440px;
+  border-top: 4px solid var(--secondary-color);
+}
+
+.auth-card h1 {
+  font-size: 1.9rem;
+  margin-bottom: 8px;
+  text-align: center;
+}
+
+.auth-card .section-intro {
+  text-align: center;
+}
+
+/* The auth submit button is full-width inside the narrow card. */
+.auth-button {
+  width: 100%;
+}
+
+.auth-card .form-actions {
+  margin: 4px 0 8px;
+}
+
+/* Email-safety note on the registration screen (Ondra): small reassuring print. */
+.auth-safety-note {
+  font-size: 0.85rem;
+  color: var(--text-light);
+  background: var(--bg-light);
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-bottom: 4px;
+}
+
+.auth-links {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin-top: 18px;
+  font-size: 0.95rem;
+}
+
+.auth-link-row {
+  color: var(--text-light);
+}
+
+.auth-link-row .text-link {
+  margin-left: 6px;
+}
+
+.auth-back {
+  margin-top: 22px;
+}
+
+/* "Signed in as <email> · Sign out" bar (home + pledge pages). */
+.auth-status {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  font-size: 0.9rem;
+  color: var(--text-light);
+}
+
+.auth-status-who {
+  word-break: break-word;
+}
+
+.auth-status-sep {
+  color: var(--text-light);
+}
+
+.auth-status-signout {
+  border: none;
+  background: transparent;
+  color: var(--secondary-color);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 2px;
+}
+
+.auth-status-signout:hover {
+  text-decoration: underline;
+}
+
+/* On the home CTA (red gradient) the status text needs light colors. */
+.cta-section .auth-status,
+.cta-section .auth-status-sep {
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.cta-section .auth-status-signout {
+  color: #fff;
+  text-decoration: underline;
+}
+
+/* Pledge-page header bar carrying the sign-out control, right-aligned. */
+.pledge-authbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 10px;
 }

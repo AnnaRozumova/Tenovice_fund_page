@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="cs">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title data-i18n="auth.docTitle">Sign in | Tenovice Fundraising</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <div class="header-row">
+        <div class="logo">
+          <img src="images/logo_kagyu.svg" data-i18n-alt="common.logoAlt" alt="Karma Kagyu buddhism">
+        </div>
+        <div class="lang-toggle header-lang" role="group" data-i18n-aria-label="common.langLabel" aria-label="Language">
+          <button type="button" class="lang-btn" data-set-lang="cs">CS</button>
+          <span class="lang-sep" aria-hidden="true">·</span>
+          <button type="button" class="lang-btn" data-set-lang="en">EN</button>
+        </div>
+      </div>
+    </header>
+
+    <section class="auth-card">
+      <!-- Shared feedback box (errors + notices) for every view -->
+      <div id="authMessage" class="form-message hidden" role="alert"></div>
+
+      <!-- ============ Login ============ -->
+      <div id="view-login" class="auth-view">
+        <h1 data-i18n="auth.loginHeading">Sign in</h1>
+        <p class="section-intro" data-i18n="auth.loginIntro">Sign in to use the calculator and add your pledge.</p>
+
+        <div class="form-field">
+          <label for="loginEmail" data-i18n="auth.emailLabel">Email</label>
+          <input id="loginEmail" type="email" autocomplete="username" required>
+        </div>
+        <div class="form-field">
+          <label for="loginPassword" data-i18n="auth.passwordLabel">Password</label>
+          <input id="loginPassword" type="password" autocomplete="current-password" required>
+        </div>
+
+        <div class="form-actions center-actions">
+          <button type="button" class="cta-button form-submit-button auth-button" id="loginButton" data-i18n="auth.signInButton">Sign in</button>
+        </div>
+
+        <div class="auth-links">
+          <a href="#" class="text-link" data-goto-view="forgot" data-i18n="auth.forgotLink">Forgot your password?</a>
+          <a href="#" class="text-link" data-goto-view="confirm" data-i18n="auth.haveCodeLink">Have a verification code?</a>
+          <span class="auth-link-row">
+            <span data-i18n="auth.noAccount">No account yet?</span>
+            <a href="#" class="text-link" data-goto-view="register" data-i18n="auth.toRegister">Create one</a>
+          </span>
+        </div>
+      </div>
+
+      <!-- ============ Register ============ -->
+      <div id="view-register" class="auth-view hidden">
+        <h1 data-i18n="auth.registerHeading">Create your account</h1>
+        <p class="section-intro" data-i18n="auth.registerIntro">Register with your email and a password to make a pledge.</p>
+
+        <div class="form-field">
+          <label for="registerEmail" data-i18n="auth.emailLabel">Email</label>
+          <input id="registerEmail" type="email" autocomplete="username" required>
+        </div>
+        <div class="form-field">
+          <label for="registerPassword" data-i18n="auth.passwordLabel">Password</label>
+          <input id="registerPassword" type="password" autocomplete="new-password" required>
+          <span class="field-hint" data-i18n="auth.passwordHint">At least 12 characters, with an uppercase and a lowercase letter, a number and a symbol.</span>
+        </div>
+        <div class="form-field">
+          <label for="registerPasswordConfirm" data-i18n="auth.passwordConfirmLabel">Confirm password</label>
+          <input id="registerPasswordConfirm" type="password" autocomplete="new-password" required>
+        </div>
+
+        <p class="auth-safety-note" data-i18n="auth.emailSafetyNote">
+          Your email is never shared or shown publicly. It is used only for secure sign-in, registration and password recovery.
+        </p>
+
+        <div class="form-actions center-actions">
+          <button type="button" class="cta-button form-submit-button auth-button" id="registerButton" data-i18n="auth.registerButton">Create account</button>
+        </div>
+
+        <div class="auth-links">
+          <span class="auth-link-row">
+            <span data-i18n="auth.haveAccount">Already have an account?</span>
+            <a href="#" class="text-link" data-goto-view="login" data-i18n="auth.toLogin">Sign in</a>
+          </span>
+        </div>
+      </div>
+
+      <!-- ============ Confirm code (email verification) ============ -->
+      <div id="view-confirm" class="auth-view hidden">
+        <h1 data-i18n="auth.confirmHeading">Verify your email</h1>
+        <p class="section-intro" data-i18n="auth.confirmIntro">Enter the code we sent to your email to verify your account.</p>
+
+        <div class="form-field">
+          <label for="confirmEmail" data-i18n="auth.emailLabel">Email</label>
+          <input id="confirmEmail" type="email" autocomplete="username" required>
+        </div>
+        <div class="form-field">
+          <label for="confirmCode" data-i18n="auth.codeLabel">Verification code</label>
+          <input id="confirmCode" type="text" inputmode="numeric" autocomplete="one-time-code" required>
+        </div>
+
+        <div class="form-actions center-actions">
+          <button type="button" class="cta-button form-submit-button auth-button" id="confirmButton" data-i18n="auth.confirmButton">Verify</button>
+        </div>
+
+        <div class="auth-links">
+          <a href="#" class="text-link" id="resendCodeLink" data-i18n="auth.resendCode">Resend code</a>
+          <a href="#" class="text-link" data-goto-view="login" data-i18n="auth.toLogin">Sign in</a>
+        </div>
+      </div>
+
+      <!-- ============ Forgot password ============ -->
+      <div id="view-forgot" class="auth-view hidden">
+        <h1 data-i18n="auth.forgotHeading">Reset your password</h1>
+        <p class="section-intro" data-i18n="auth.forgotIntro">Enter your email and we will send you a reset code.</p>
+
+        <div class="form-field">
+          <label for="forgotEmail" data-i18n="auth.emailLabel">Email</label>
+          <input id="forgotEmail" type="email" autocomplete="username" required>
+        </div>
+
+        <div class="form-actions center-actions">
+          <button type="button" class="cta-button form-submit-button auth-button" id="forgotButton" data-i18n="auth.sendResetButton">Send reset code</button>
+        </div>
+
+        <div class="auth-links">
+          <a href="#" class="text-link" data-goto-view="login" data-i18n="auth.toLogin">Sign in</a>
+        </div>
+      </div>
+
+      <!-- ============ Reset password (code + new password) ============ -->
+      <div id="view-reset" class="auth-view hidden">
+        <h1 data-i18n="auth.resetHeading">Choose a new password</h1>
+        <p class="section-intro" data-i18n="auth.resetIntro">Enter the code from your email and a new password.</p>
+
+        <div class="form-field">
+          <label for="resetEmail" data-i18n="auth.emailLabel">Email</label>
+          <input id="resetEmail" type="email" autocomplete="username" required>
+        </div>
+        <div class="form-field">
+          <label for="resetCode" data-i18n="auth.codeLabel">Verification code</label>
+          <input id="resetCode" type="text" inputmode="numeric" autocomplete="one-time-code" required>
+        </div>
+        <div class="form-field">
+          <label for="resetPassword" data-i18n="auth.newPasswordLabel">New password</label>
+          <input id="resetPassword" type="password" autocomplete="new-password" required>
+          <span class="field-hint" data-i18n="auth.passwordHint">At least 12 characters, with an uppercase and a lowercase letter, a number and a symbol.</span>
+        </div>
+        <div class="form-field">
+          <label for="resetPasswordConfirm" data-i18n="auth.passwordConfirmLabel">Confirm password</label>
+          <input id="resetPasswordConfirm" type="password" autocomplete="new-password" required>
+        </div>
+
+        <div class="form-actions center-actions">
+          <button type="button" class="cta-button form-submit-button auth-button" id="resetButton" data-i18n="auth.resetButton">Reset password</button>
+        </div>
+
+        <div class="auth-links">
+          <a href="#" class="text-link" data-goto-view="login" data-i18n="auth.toLogin">Sign in</a>
+        </div>
+      </div>
+
+      <p class="auth-back center">
+        <a class="text-link" href="index.html" data-i18n="common.backHomeArrow">← Back to homepage</a>
+      </p>
+    </section>
+
+    <footer class="footer">
+      <p data-i18n="footer.copyright">&copy; 2026 Tenovice Project. All rights reserved.</p>
+    </footer>
+  </div>
+
+  <script src="i18n.js"></script>
+  <script src="config.js"></script>
+  <script src="vendor/amazon-cognito-identity.min.js"></script>
+  <script src="auth-common.js"></script>
+  <script src="auth.js"></script>
+</body>
+</html>

@@ -25,6 +25,7 @@ prod move to SES is a later follow-up if volume ever needs it.
 from constructs import Construct
 from aws_cdk import (
     aws_cognito as cognito,
+    aws_lambda as _lambda,
     Duration,
     RemovalPolicy,
     CfnOutput,
@@ -39,10 +40,27 @@ class CognitoConstruct(Construct):
 
         is_dev = config.stage == "dev"
 
+        # Custom Message trigger: localized (CZ/EN) verification + password-reset
+        # emails (AUTH2). Pure stdlib handler → no bundling. The auth screens store
+        # the chosen language in the user's `locale` attribute; the handler reads it.
+        self.custom_message_fn = _lambda.Function(
+            self,
+            "CustomMessageFn",
+            function_name=f"{config.project_name}-{config.stage}-cognito-message",
+            runtime=_lambda.Runtime.PYTHON_3_14,
+            handler="index.handler",
+            code=_lambda.Code.from_asset("../services/cognito_custom_message"),
+            timeout=Duration.seconds(5),
+        )
+
         self.user_pool = cognito.UserPool(
             self,
             "UserPool",
             user_pool_name=f"{config.project_name}-{config.stage}-users",
+            # Localized verification / reset emails (AUTH2).
+            lambda_triggers=cognito.UserPoolTriggers(
+                custom_message=self.custom_message_fn,
+            ),
             # Users register themselves; email is the username and gets verified.
             self_sign_up_enabled=True,
             sign_in_aliases=cognito.SignInAliases(email=True),

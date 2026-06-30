@@ -92,19 +92,41 @@ aws s3 website s3://your-bucket-name --index-document index.html
 
 ```
 web/
-├── index.html      # Home page (progress + stats)
-├── pledge.html     # Pledge calculator (lookup, create/edit, live preview)
+├── index.html      # Home page (progress + stats); CTA routes to auth/pledge
+├── auth.html       # Login / register / verify / reset screens (Cognito, AUTH2)
+├── pledge.html     # Pledge calculator (gated behind login; create/edit, simulator)
 ├── success.html    # Post-pledge confirmation
 ├── admin.html      # Internal admin: edit balance/goal/breakdown (English only)
 ├── style.css       # Styling
-├── config.js       # API URL + fallback defaults; loads live values from GET /config
+├── config.js       # API URL + COGNITO (pool/client ids) + fallback defaults; loads GET /config
 ├── i18n.js         # CZ/EN dictionary + toggle (see "Languages")
 ├── main.js         # Home-page logic
+├── auth.js         # Auth-screens logic (Cognito SRP)
+├── auth-common.js  # Shared session/token helper `Auth` (requireAuth, apiFetch bearer token)
 ├── pledge.js       # Pledge-page logic
 ├── admin.js        # Admin-page logic
+├── vendor/         # amazon-cognito-identity.min.js (vendored, no build step)
 └── README.md       # This file
 ```
 (Parity checker lives outside `web/` at `tools/check-i18n-parity.js`.)
+
+## Authentication (AUTH2)
+
+Login required for the pledge flow (the home page stays public). Users sign in / register / verify their
+email / reset their password through the on-site `auth.html` screens, which talk to a **Cognito user pool**
+via the vendored `amazon-cognito-identity-js` (SRP — no build step). Set the pool in `config.js`:
+
+```javascript
+COGNITO: {
+  REGION: 'eu-central-1',
+  USER_POOL_ID: 'eu-central-1_xxxxxxxxx', // CDK output UserPoolId
+  CLIENT_ID: 'xxxxxxxxxxxxxxxxxxxxxxxxxx', // CDK output UserPoolClientId
+},
+```
+
+It's **per-stage like `API_URL`** (prod gets its own pool/client). The screens talk to Cognito directly, so
+you can test register→verify→login locally against a deployed dev pool. The API itself is still open until
+the AUTH3 authorizer; `auth-common.js` already attaches the id-token as a bearer header on every API call.
 
 ## Features
 
