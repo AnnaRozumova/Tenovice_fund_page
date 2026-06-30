@@ -984,8 +984,7 @@ body {
   }
 }
 
-.lookup-card,
-.existing-pledge-card {
+.lookup-card {
   background: var(--bg-white);
   border-radius: var(--border-radius);
   box-shadow: var(--shadow);
@@ -993,39 +992,16 @@ body {
   margin: 40px 0;
 }
 
-/* The existing-pledge card can be the first thing a returning user sees, so it
-   carries its own corner language toggle (AUTH2) — anchor it and add top room so
-   the toggle clears the centered heading. */
-.existing-pledge-card {
-  position: relative;
-  padding-top: 44px;
-}
-
-/* Constrain the gate + existing-pledge cards so they don't stretch full width
-   around the centered content (keeps them visually balanced, like the pledge card). */
-#authLoading,
-#existingPledgeCard {
+/* Constrain the gate card so it doesn't stretch full width around the centered
+   content (keeps it visually balanced, like the pledge card). */
+#authLoading {
   max-width: 600px;
   margin-left: auto;
   margin-right: auto;
 }
 
-.lookup-card,
-.existing-pledge-card {
+.lookup-card {
   text-align: center;
-}
-
-#existingPledgeCard .existing-pledge-summary {
-  max-width: 420px;
-  margin-left: auto;
-  margin-right: auto;
-}
-
-.existing-pledge-summary {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  margin-bottom: 24px;
 }
 
 #email[readonly] {

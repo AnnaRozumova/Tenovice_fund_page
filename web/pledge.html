@@ -27,49 +27,10 @@
       </div>
     </section>
 
-    <section id="existingPledgeCard" class="existing-pledge-card hidden">
-      <div class="lang-toggle corner" role="group" data-i18n-aria-label="common.langLabel" aria-label="Language">
-        <button type="button" class="lang-btn" data-set-lang="cs">CS</button>
-        <span class="lang-sep" aria-hidden="true">·</span>
-        <button type="button" class="lang-btn" data-set-lang="en">EN</button>
-      </div>
-      <h2 data-i18n="pledge.existingHeading">Existing pledge found</h2>
-      <p class="section-intro" data-i18n="pledge.existingIntro">We found a pledge for this email. You can review it and choose whether to update it.</p>
-
-      <div class="existing-pledge-summary">
-        <div class="preview-row">
-          <span data-i18n="pledge.emailLabel">Email</span>
-          <strong id="existingEmail">-</strong>
-        </div>
-        <div class="preview-row">
-          <span data-i18n="pledge.fieldAmount">Amount</span>
-          <strong id="existingAmount">…</strong>
-        </div>
-        <div class="preview-row">
-          <span data-i18n="pledge.fieldType">Type</span>
-          <strong id="existingType">-</strong>
-        </div>
-        <div class="preview-row hidden" id="existingEndDateRow">
-          <span data-i18n="pledge.fieldEndDate">End date</span>
-          <strong id="existingEndDate">-</strong>
-        </div>
-        <div class="preview-row">
-          <span data-i18n="pledge.fieldCampaignTotal">Campaign total</span>
-          <strong id="existingCampaignTotal">…</strong>
-        </div>
-        <div class="preview-row">
-          <span data-i18n="pledge.fieldMessage">Message</span>
-          <strong id="existingMessage">-</strong>
-        </div>
-      </div>
-
-      <div class="form-actions center-actions">
-        <button type="button" class="cta-button form-submit-button" id="editExistingButton" data-i18n="pledge.editExisting">Yes, edit pledge</button>
-        <a class="secondary-button" href="index.html" data-i18n="common.backHome">Back to homepage</a>
-      </div>
-    </section>
-
-    <!-- ============ STEP 2: calc page (banner + sticky bar + simulator + supporters + pledge) ============ -->
+    <!-- Calc page (banner + sticky bar + simulator + supporters + pledge). A returning
+         user lands here directly with the pledge form pre-filled in edit mode — there is
+         no separate "existing pledge found" card, since this page already shows (and lets
+         them edit) that pledge. A new user gets the same page with an empty form. -->
     <div id="pledgeFlowSection" class="hidden">
 
       <div class="calc-banner">

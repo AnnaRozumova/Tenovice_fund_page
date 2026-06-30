@@ -363,7 +363,6 @@ function fillPledgeForm(values) {
 
 function showFlowSection() {
   $('authLoading').classList.add('hidden');
-  $('existingPledgeCard').classList.add('hidden');
   $('pledgeFlowSection').classList.remove('hidden');
 
   renderTopbar();
@@ -390,24 +389,6 @@ function enterEditMode() {
   fillPledgeForm(existingPledge);
 }
 
-function populateExistingSummary(data) {
-  // The by-email response no longer echoes the email (H1); show the one the user
-  // just entered for the lookup (already stored in pledgeEmail).
-  $('existingEmail').textContent = pledgeEmail || '-';
-  $('existingAmount').textContent = formatCurrency(Number(data.amount || 0));
-  $('existingCampaignTotal').textContent = formatCurrency(Number(data.campaign_total || 0));
-  $('existingMessage').textContent = data.message ? data.message : '-';
-
-  if (data.is_monthly) {
-    $('existingType').textContent = t('pledge.typeMonthly');
-    $('existingEndDate').textContent = `${data.end_month}/${data.end_year}`;
-    $('existingEndDateRow').classList.remove('hidden');
-  } else {
-    $('existingType').textContent = t('pledge.typeOneTime');
-    $('existingEndDateRow').classList.add('hidden');
-  }
-}
-
 async function lookupPledgeByEmail(email) {
   const response = await Auth.apiFetch(
     withCurrency(`/pledges/by-email?email=${encodeURIComponent(email)}`)
@@ -429,8 +410,10 @@ function showLookupError() {
   $('authLoadingError').classList.remove('hidden');
 }
 
-// Load the signed-in user's stats + any existing pledge, then reveal the right
-// state: the existing-pledge review card (returning user) or the create flow.
+// Load the signed-in user's stats + any existing pledge, then reveal the calc page in
+// the right mode: a returning user lands straight in edit mode with their pledge
+// pre-filled (no separate review card — this page already shows that pledge); a new
+// user gets the empty create form.
 async function startPledgeFlow() {
   await loadStats();
 
@@ -439,11 +422,8 @@ async function startPledgeFlow() {
     const notFound = response.status === 404 || (data && data.message === 'not found');
 
     if (response.ok && data && !notFound) {
-      $('authLoading').classList.add('hidden');
       existingPledge = data;
-      isEditMode = false;
-      populateExistingSummary(data);
-      $('existingPledgeCard').classList.remove('hidden');
+      enterEditMode(); // hides authLoading via showFlowSection, pre-fills the form
       return;
     }
     if (notFound) {
@@ -459,8 +439,7 @@ async function startPledgeFlow() {
   }
 }
 
-function setupExistingCard() {
-  $('editExistingButton').addEventListener('click', enterEditMode);
+function setupRetry() {
   $('authRetryButton').addEventListener('click', () => window.location.reload());
 }
 
@@ -471,14 +450,6 @@ async function refreshDynamicI18n() {
   renderAuthStatus('pledgeAuth');
   await loadConfig(); // CONFIG.* now in the new currency
 
-  if (existingPledge && !$('existingPledgeCard').classList.contains('hidden')) {
-    const { response, data } = await lookupPledgeByEmail(pledgeEmail);
-    if (response.ok && data) {
-      existingPledge = data;
-    }
-    populateExistingSummary(existingPledge);
-  }
-
   if (!$('pledgeFlowSection').classList.contains('hidden')) {
     await loadStats();
     renderTopbar();
@@ -488,12 +459,21 @@ async function refreshDynamicI18n() {
     // The last result was computed in the old currency, and the amount input is now
     // read as the new currency — clear it so the user recalculates intentionally.
     renderSimPlaceholder();
+    // In edit mode the form is pre-filled from the saved pledge; re-fetch it in the new
+    // currency and re-fill so the amount isn't left showing the old currency (D22).
+    if (isEditMode) {
+      const { response, data } = await lookupPledgeByEmail(pledgeEmail);
+      if (response.ok && data) {
+        existingPledge = data;
+        fillPledgeForm(existingPledge);
+      }
+    }
   }
 }
 
 async function initPledgePage() {
   await loadConfig();
-  setupExistingCard();
+  setupRetry();
   setupSimulator();
   setupPledgeForm();
   document.addEventListener('i18n:changed', refreshDynamicI18n);
