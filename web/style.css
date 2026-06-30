@@ -330,37 +330,34 @@ body {
   color: white;
 }
 
-/* The heart itself is the call to action: clicking it starts the pledge flow
-   (login/register, then the calculator). No separate "Make a Pledge" button. */
-.heart-button {
+/* Big decorative heart with the CTA button centered on top of it. The button
+   may slightly overhang the heart's edges. The heart pulses behind the button
+   (the button is positioned against the wrapper, so it stays still). */
+.heart-cta {
+  position: relative;
   display: inline-block;
-  padding: 0;
-  margin-bottom: 20px;
-  background: none;
-  border: none;
-  cursor: pointer;
-  line-height: 1;
-  transition: var(--transition);
-}
-
-.heart-button:hover {
-  transform: scale(1.08);
-}
-
-.heart-button:active {
-  transform: scale(1.02);
-}
-
-.heart-button:focus-visible {
-  outline: 3px solid rgba(255, 255, 255, 0.85);
-  outline-offset: 8px;
-  border-radius: 50%;
 }
 
 .heart-icon {
-  display: block;
-  font-size: 6rem;
+  font-size: 16rem;
+  line-height: 1;
   animation: heartbeat 1.5s ease-in-out infinite;
+}
+
+.heart-cta .cta-button {
+  position: absolute;
+  top: 52%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  white-space: nowrap;
+}
+
+.heart-cta .cta-button:hover {
+  transform: translate(-50%, -50%) translateY(-3px);
+}
+
+.heart-cta .cta-button:active {
+  transform: translate(-50%, -50%) translateY(-1px);
 }
 
 @keyframes heartbeat {

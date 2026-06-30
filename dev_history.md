@@ -5,6 +5,30 @@ and how it was verified. Companion to `CLAUDE.md` (developer quick-start) and `d
 
 ---
 
+## 2026-06-30 — Home CTA: button centered inside a big heart
+
+**Why:** Follow-up iteration on the previous home-CTA tweak (Anna/Martin preference). Instead of the heart
+*being* the button, the final look is a **large decorative heart with the CTA button centered on top of it**
+— the button may slightly overhang the heart's tapering sides.
+
+**What (frontend, `web/`):**
+- **`index.html`** — wrapped the heart `<div>` and the `<button id="pledgeButton">` in a
+  `<div class="heart-cta">` positioning context. The heart is a **decorative `<div>` again** (`aria-hidden`,
+  not interactive); the **button carries the action** and shows the text **"Buď srdcem toho všeho" /
+  "Be heart of it"** (i18n key `index.ctaHeading`).
+- **`style.css`** — `.heart-cta { position: relative }`; the heart grew to **`16rem`**; the button is
+  `position: absolute` centered (`top: 52%; left/transform`) over the heart, `white-space: nowrap`, with the
+  hover/active lift composed into the centering transform. The heartbeat animation runs on the heart only, so
+  the button stays still while the heart pulses behind it. Removed the interim `.heart-button` styles.
+- **Behavior unchanged** — click handler still keys off `id="pledgeButton"` (`main.js`): signed-in →
+  `pledge.html`, signed-out → `auth.html`. No i18n keys added/removed (parity holds at 182/lang). The
+  `index.ctaButton` ("Make a Pledge") key stays reserved for the post-login wording under the calculator.
+
+**Verified:** served `web/` locally; heart bounding box ≈ 352×256px, button ≈ 326px centered within it,
+click (signed-out) navigates to `auth.html`.
+
+---
+
 ## 2026-06-30 — Home CTA: the heart *is* the button (no "Make a Pledge" button)
 
 **Why:** Small UX tweak between AUTH2 and AUTH3. On the home page the "Make a Pledge" wording belongs
