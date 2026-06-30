@@ -5,6 +5,34 @@ and how it was verified. Companion to `CLAUDE.md` (developer quick-start) and `d
 
 ---
 
+## 2026-06-30 — Returning-user UX: one page instead of a two-step gate (frontend)
+
+**Why:** A returning pledger saw a separate "Existing pledge found" review card with an "Edit" button, and
+only then the calculator + the pre-filled pledge form. The card **duplicated** what that next page already
+shows, so it was an extra click for no new information (Ondra's UX note; greenlit after AUTH3 since both touch
+the by-email / identity flow).
+
+**What (frontend, `web/`, no backend change):**
+- **`pledge.html`** — removed the whole `#existingPledgeCard` section (heading, summary rows, "Yes, edit
+  pledge" button). The `authLoading` spinner + lookup-error retry stay.
+- **`pledge.js`** — `startPledgeFlow` now sends a returning user **straight into edit mode**
+  (`enterEditMode`, form pre-filled from their pledge); a new user gets the same page with an empty form
+  (`enterCreateMode`). Removed `populateExistingSummary`; `setupExistingCard` → `setupRetry` (only the
+  retry button remains). On a **language switch in edit mode** the form is now re-fetched + re-filled in the
+  new currency (D22) so the pre-filled amount doesn't linger in the old currency (the pledge form previously
+  only reconverted on the now-removed card).
+- **`i18n.js`** — dropped 11 keys that only the card used (`pledge.existingHeading`/`existingIntro`/
+  `emailLabel`/`fieldAmount`/`fieldType`/`fieldEndDate`/`fieldCampaignTotal`/`fieldMessage`/`editExisting`/
+  `typeMonthly`/`typeOneTime`); parity holds at **171** keys/lang.
+- **`style.css`** — removed the now-dead `.existing-pledge-card` / `.existing-pledge-summary` /
+  `#existingPledgeCard` rules (kept `.lookup-card` / `#authLoading`, still used by the spinner).
+
+**Verified:** `node --check` on `pledge.js` + `i18n.js` clean; i18n parity **171/lang**; grep confirms no
+dangling references to the removed ids/functions/keys; browser smoke test (local threaded server) — `pledge.html`
+initializes with no console errors and the AUTH2 gate redirects a signed-out visitor to `auth.html?next=pledge.html`.
+The signed-in single-page landing (edit mode pre-filled) was confirmed in a browser against the live dev API + real
+Cognito login.
+
 ## 2026-06-30 — AUTH3: enforce the API behind a Cognito JWT authorizer + throttling + identity from claims (D18)
 
 **Why:** AUTH1 created the user pool and AUTH2 wired the frontend to send `Bearer <idToken>`, but the API was

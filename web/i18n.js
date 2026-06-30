@@ -47,18 +47,8 @@ const TRANSLATIONS = {
 
     // Pledge page — static
     'pledge.docTitle': 'Přidat příslib | Fundraising Těnovice',
-    'pledge.emailLabel': 'E-mail',
-    'pledge.existingHeading': 'Našli jsme tvůj příslib',
-    'pledge.existingIntro':
-      'Pro tento e-mail jsme našli příslib. Můžeš si ho zobrazit a rozhodnout, jestli ho upravíš.',
-    'pledge.fieldAmount': 'Částka',
     'pledge.fieldAmountEur': 'Částka (Kč)',
-    'pledge.fieldType': 'Typ',
-    'pledge.fieldEndDate': 'Datum konce',
-    'pledge.fieldCampaignTotal': 'Celkový přínos pro sbírku',
-    'pledge.fieldMessage': 'Zpráva',
     'pledge.fieldMessageOptional': 'Zpráva (nepovinné)',
-    'pledge.editExisting': 'Ano, upravit příslib',
     'pledge.monthlyCheckbox': 'Toto je měsíční příslib',
     'pledge.endMonth': 'Měsíc konce',
     'pledge.endYear': 'Rok konce',
@@ -121,8 +111,6 @@ const TRANSLATIONS = {
     'pledge.formTitleEdit': 'Uprav svůj příslib',
     'pledge.formIntroEdit':
       'Upravuješ svůj existující příslib. Po uložení nahradí tvůj současný příslib.',
-    'pledge.typeMonthly': 'Měsíčně opakovaný',
-    'pledge.typeOneTime': 'Jednorázový',
     'pledge.btnSaving': 'Ukládám…',
     'pledge.errAmount': 'Částka musí být větší než 0.',
     'pledge.errAmountMax': 'Částka nesmí přesáhnout {max}.',
@@ -265,18 +253,8 @@ const TRANSLATIONS = {
 
     // Pledge page — static
     'pledge.docTitle': 'Make a Pledge | Tenovice Fundraising',
-    'pledge.emailLabel': 'Email',
-    'pledge.existingHeading': 'Existing pledge found',
-    'pledge.existingIntro':
-      'We found a pledge for this email. You can review it and choose whether to update it.',
-    'pledge.fieldAmount': 'Amount',
     'pledge.fieldAmountEur': 'Amount (EUR)',
-    'pledge.fieldType': 'Type',
-    'pledge.fieldEndDate': 'End date',
-    'pledge.fieldCampaignTotal': 'Campaign total',
-    'pledge.fieldMessage': 'Message',
     'pledge.fieldMessageOptional': 'Message (optional)',
-    'pledge.editExisting': 'Yes, edit pledge',
     'pledge.monthlyCheckbox': 'This is a monthly recurring pledge',
     'pledge.endMonth': 'End month',
     'pledge.endYear': 'End year',
@@ -339,8 +317,6 @@ const TRANSLATIONS = {
     'pledge.formTitleEdit': 'Update your pledge',
     'pledge.formIntroEdit':
       'You are editing your existing pledge. Saving will replace your current pledge.',
-    'pledge.typeMonthly': 'Monthly recurring',
-    'pledge.typeOneTime': 'One-time',
     'pledge.btnSaving': 'Saving…',
     'pledge.errAmount': 'Amount must be greater than 0.',
     'pledge.errAmountMax': 'Amount must not exceed {max}.',
