@@ -12,9 +12,16 @@
 // Every API call goes through Auth.apiFetch, which attaches the bearer id-token
 // (the authorizer that requires it lands in AUTH3 — until then the API is open).
 
-// Mirror of the backend caps so junk is rejected before any request.
-const MAX_AMOUNT = 100000;
+// Mirror of the backend caps so junk is rejected before any request. The amount cap
+// is in the page currency: the backend cap is 2,500,000 CZK (~€100k) and an EUR amount
+// is normalized to CZK before it applies, so the EUR-side cap is ~€100k (D22).
+const MAX_AMOUNT_CZK = 2500000;
+const MAX_AMOUNT_EUR = 100000;
 const MAX_MESSAGE_LENGTH = 500;
+
+function maxAmount() {
+  return currentCurrency() === 'eur' ? MAX_AMOUNT_EUR : MAX_AMOUNT_CZK;
+}
 
 let currentStats = {
   pledged_total: 0,
@@ -58,7 +65,7 @@ function isEndDateInPast(month, year) {
 
 async function loadStats() {
   try {
-    const response = await Auth.apiFetch('/stats');
+    const response = await Auth.apiFetch(withCurrency('/stats'));
     if (!response.ok) {
       throw new Error('Failed to fetch stats');
     }
@@ -207,7 +214,7 @@ async function runCalculate() {
   button.textContent = t('sim.btnCalculating');
 
   try {
-    const response = await Auth.apiFetch('/calculate', {
+    const response = await Auth.apiFetch(withCurrency('/calculate'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -255,8 +262,8 @@ function validatePledgeForm(values) {
   if (!Number.isFinite(values.amount) || values.amount <= 0) {
     return t('pledge.errAmount');
   }
-  if (values.amount > MAX_AMOUNT) {
-    return t('pledge.errAmountMax', { max: formatCurrency(MAX_AMOUNT) });
+  if (values.amount > maxAmount()) {
+    return t('pledge.errAmountMax', { max: formatCurrency(maxAmount()) });
   }
   if (values.message.length > MAX_MESSAGE_LENGTH) {
     return t('pledge.errMessageMax', { max: MAX_MESSAGE_LENGTH });
@@ -307,7 +314,7 @@ async function submitPledge(event) {
   button.textContent = t('pledge.btnSaving');
 
   try {
-    const response = await Auth.apiFetch('/pledges', {
+    const response = await Auth.apiFetch(withCurrency('/pledges'), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(buildPayload(values)),
@@ -402,7 +409,9 @@ function populateExistingSummary(data) {
 }
 
 async function lookupPledgeByEmail(email) {
-  const response = await Auth.apiFetch(`/pledges/by-email?email=${encodeURIComponent(email)}`);
+  const response = await Auth.apiFetch(
+    withCurrency(`/pledges/by-email?email=${encodeURIComponent(email)}`)
+  );
   // Guard the parse: an error response may carry a non-JSON body (gateway HTML).
   let data = null;
   try {
@@ -455,21 +464,30 @@ function setupExistingCard() {
   $('authRetryButton').addEventListener('click', () => window.location.reload());
 }
 
-// On a language switch, refresh the strings JS renders at runtime (data-i18n
-// covers the static markup automatically).
-function refreshDynamicI18n() {
+// On a language switch the currency switches too (D22), so we re-fetch money in the
+// new currency rather than just re-symboling stale numbers. data-i18n covers the
+// static markup automatically; this refreshes the JS-rendered, currency-bearing parts.
+async function refreshDynamicI18n() {
   renderAuthStatus('pledgeAuth');
+  await loadConfig(); // CONFIG.* now in the new currency
+
   if (existingPledge && !$('existingPledgeCard').classList.contains('hidden')) {
+    const { response, data } = await lookupPledgeByEmail(pledgeEmail);
+    if (response.ok && data) {
+      existingPledge = data;
+    }
     populateExistingSummary(existingPledge);
   }
+
   if (!$('pledgeFlowSection').classList.contains('hidden')) {
+    await loadStats();
+    renderTopbar();
     renderSupporters();
+    $('simGoalAmount').textContent = formatCurrency(CONFIG.FUNDRAISING_GOAL);
     setFormModeText();
-    if (lastCalc) {
-      renderSimResult(lastCalc);
-    } else {
-      renderSimPlaceholder();
-    }
+    // The last result was computed in the old currency, and the amount input is now
+    // read as the new currency — clear it so the user recalculates intentionally.
+    renderSimPlaceholder();
   }
 }
 

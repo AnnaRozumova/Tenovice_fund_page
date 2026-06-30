@@ -52,7 +52,7 @@ const TRANSLATIONS = {
     'pledge.existingIntro':
       'Pro tento e-mail jsme našli příslib. Můžeš si ho zobrazit a rozhodnout, jestli ho upravíš.',
     'pledge.fieldAmount': 'Částka',
-    'pledge.fieldAmountEur': 'Částka (EUR)',
+    'pledge.fieldAmountEur': 'Částka (Kč)',
     'pledge.fieldType': 'Typ',
     'pledge.fieldEndDate': 'Datum konce',
     'pledge.fieldCampaignTotal': 'Celkový přínos pro sbírku',
@@ -75,7 +75,7 @@ const TRANSLATIONS = {
       'Co kdyby přispělo víc přátel jako ty? Zadej hodnoty a klikni na Spočítat — hned uvidíš, jaký dopad na cíl byste měli společně. Nic se neukládá, je to jen orientační výpočet.',
     'sim.peopleLabel': 'Kolik lidí jako ty?',
     'sim.peopleHint': 'Kolik přátel by přispělo stejnou částkou (orientačně, bez omezení).',
-    'sim.amountPerPerson': 'Částka na osobu (EUR)',
+    'sim.amountPerPerson': 'Částka na osobu (Kč)',
     'sim.typeLabel': 'Typ příspěvku',
     'sim.oneTime': 'Jednorázově',
     'sim.monthly': 'Měsíčně',

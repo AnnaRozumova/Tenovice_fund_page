@@ -5,6 +5,36 @@ and how it was verified. Companion to `CLAUDE.md` (developer quick-start) and `d
 
 ---
 
+## 2026-06-30 — Currency CZK/EUR: frontend follows the page language (D22, frontend — step B)
+
+**Why:** Step A made the API store canonical CZK and convert by `?currency=`. Step B wires the frontend so
+the **display currency follows the page language** (CZ → CZK, EN → EUR) — the visible half of D22.
+
+**What (frontend, `web/`):**
+- **`config.js`** — `currentCurrency()` reads the active language from `<html lang>` (kept in sync by
+  `i18n.js`) and maps it to `czk`/`eur`; `withCurrency(path)` appends `?currency=` to a request path;
+  `formatCurrency(amount)` now formats with the **current** currency's symbol/locale (`2 500 Kč` via cs-CZ,
+  `€2,500` via en) instead of always EUR. Fallback defaults flipped to canonical CZK.
+- **`main.js` / `pledge.js`** — every money-bearing call (`/stats`, `/config`, `/calculate`, `/pledges`,
+  `/pledges/by-email`) goes through `withCurrency(...)`. On a **language switch** (`i18n:changed`) both pages
+  **re-fetch** the money data in the new currency rather than re-symboling stale numbers; the simulator result
+  is cleared (its amount input is now read as the new currency). The client-side amount cap is per-currency
+  (`MAX_AMOUNT_EUR` 100,000 / `MAX_AMOUNT_CZK` 2,500,000), mirroring the backend.
+- **`i18n.js`** — the two currency-dependent input labels (`pledge.fieldAmountEur`, `sim.amountPerPerson`)
+  are baked per-language (cs → `(Kč)`, en → `(EUR)`), since currency ≡ language; no key changes (parity holds
+  at 182). Stale `€…` static placeholders in `index.html`/`pledge.html` replaced with `…` so they don't flash
+  the wrong currency before JS fills them.
+- **`admin.html` unchanged** — it omits `?currency=` and edits canonical CZK.
+
+**Verified:** i18n parity green (182/lang). Browser-tested against the local FastAPI-over-moto harness (CZK
+seed) via the preview: the home page shows `7 750 400 Kč` / `70 000 000 Kč` / `2 422 000 Kč` in CZ and
+`€320,000` / `€2,890,173` / `€100,000` in EN; the supporters count is never converted; the language switch
+re-fetches (`/config?currency=czk` + `/stats?currency=czk` ↔ `…=eur` observed in the network panel); no
+console errors. The pledge page is behind the Cognito gate (AUTH2) — its shared helpers are the same, verified
+manually signed-in. **Not deployed** (deploy with step A).
+
+---
+
 ## 2026-06-30 — Currency CZK/EUR: canonical CZK in DynamoDB, converted server-side by `?currency=` (D22, backend — step A)
 
 **Why:** The site shows CZK in Czech and EUR in English. Per Ondra (decision D22): DynamoDB stores **one

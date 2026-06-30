@@ -158,8 +158,18 @@ converted** (currency-invariant). The save path rounds to whole CZK (a stored pl
 kept whole/consistent in CZK); the read-only simulator (`/calculate`) keeps full precision internally and
 rounds only the output fields, so per-person rounding isn't amplified by the people/months multiplier. The
 exchange rate (CZK per EUR, default 24.22) lives in the `CONFIG` row next to `current_balance`; admin edits
-it (for now via the AWS console, D22-storage). **Frontend wiring (sending `?currency=`, currency symbols) is
-Phase B** — deploy the backend + frontend currency changes together.
+it (for now via the AWS console, D22-storage).
+
+**Frontend (`web/`):** the display currency follows the page language (CZ → CZK, EN → EUR). `config.js`
+`currentCurrency()` reads it from `<html lang>` (kept in sync by `i18n.js`); `withCurrency(path)` appends
+`?currency=` to every money-bearing request; `formatCurrency(amount)` renders the already-converted value
+with the right symbol (`2 500 Kč` / `€2,500`). A **language switch re-fetches** the money data in the new
+currency (it doesn't just re-symbol stale numbers) — `main.js` and `pledge.js` do this on `i18n:changed`; the
+simulator result is cleared so the user recalculates (the amount input is now read as the new currency).
+Currency-dependent static labels (e.g. the amount field's `(Kč)`/`(EUR)`) are baked per-language in the i18n
+dict since currency ≡ language. `admin.html` is unaffected — it omits `?currency=` and edits canonical CZK.
+**Deploy the backend + frontend currency changes together** (the backend defaults are CZK, so an un-updated
+frontend would label koruna with a € symbol).
 
 ## JSON encoding note
 
