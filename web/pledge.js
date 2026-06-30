@@ -1,14 +1,18 @@
-// Pledge page (D2). Two distinct flows on one page:
+// Pledge page (D2 + AUTH2). The page is gated: a signed-out visitor is bounced to
+// auth.html (only the home page is public, D18). Identity is the signed-in Cognito
+// account, so the old email-lookup step is gone — the user's email comes from the
+// session, and any existing pledge is loaded automatically. Two flows on the page:
 //   1. The what-if SIMULATOR (zones 1+2): inputs -> "Calculate" button -> POST
 //      /calculate -> render the returned result. No math in JS (single source of
 //      truth is the backend, D8/D15); the call fires on the button, never on every
 //      keystroke (Ondra: one request per keystroke would be wasteful).
 //   2. The user's own one-person pledge (zone 3): POST /pledges. No "how many
 //      people" field (that's the simulator) and no email field (known from the
-//      lookup step). 1 pledge = 1 supporter (B4).
+//      session). 1 pledge = 1 supporter (B4).
+// Every API call goes through Auth.apiFetch, which attaches the bearer id-token
+// (the authorizer that requires it lands in AUTH3 — until then the API is open).
 
-// Mirror of the backend EMAIL_RE / caps so junk is rejected before any request.
-const EMAIL_RE = /^[^@\s]+@[^@\s]+\.[^@\s]+$/;
+// Mirror of the backend caps so junk is rejected before any request.
 const MAX_AMOUNT = 100000;
 const MAX_MESSAGE_LENGTH = 500;
 
@@ -26,10 +30,6 @@ let lastCalc = null; // last /calculate result, kept so a language switch can re
 
 function $(id) {
   return document.getElementById(id);
-}
-
-function isValidEmail(email) {
-  return EMAIL_RE.test(email);
 }
 
 function showError(elementId, message) {
@@ -58,7 +58,7 @@ function isEndDateInPast(month, year) {
 
 async function loadStats() {
   try {
-    const response = await fetch(`${CONFIG.API_URL}/stats`);
+    const response = await Auth.apiFetch('/stats');
     if (!response.ok) {
       throw new Error('Failed to fetch stats');
     }
@@ -207,7 +207,7 @@ async function runCalculate() {
   button.textContent = t('sim.btnCalculating');
 
   try {
-    const response = await fetch(`${CONFIG.API_URL}/calculate`, {
+    const response = await Auth.apiFetch('/calculate', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
@@ -307,7 +307,7 @@ async function submitPledge(event) {
   button.textContent = t('pledge.btnSaving');
 
   try {
-    const response = await fetch(`${CONFIG.API_URL}/pledges`, {
+    const response = await Auth.apiFetch('/pledges', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(buildPayload(values)),
@@ -355,8 +355,7 @@ function fillPledgeForm(values) {
 // ============ Step transitions ============
 
 function showFlowSection() {
-  $('lookupHero').classList.add('hidden');
-  $('lookupCard').classList.add('hidden');
+  $('authLoading').classList.add('hidden');
   $('existingPledgeCard').classList.add('hidden');
   $('pledgeFlowSection').classList.remove('hidden');
 
@@ -403,64 +402,63 @@ function populateExistingSummary(data) {
 }
 
 async function lookupPledgeByEmail(email) {
-  const response = await fetch(`${CONFIG.API_URL}/pledges/by-email?email=${encodeURIComponent(email)}`);
-  const data = await response.json();
+  const response = await Auth.apiFetch(`/pledges/by-email?email=${encodeURIComponent(email)}`);
+  // Guard the parse: an error response may carry a non-JSON body (gateway HTML).
+  let data = null;
+  try {
+    data = await response.json();
+  } catch (error) {
+    data = null;
+  }
   return { response, data };
 }
 
-async function handleLookup() {
-  hideError('lookupError');
+// Show the lookup-failed state inside the gate card with a retry, instead of
+// silently dropping a returning pledger into the empty create form.
+function showLookupError() {
+  $('authLoadingText').classList.add('hidden');
+  $('authLoadingError').classList.remove('hidden');
+}
 
-  const button = $('lookupButton');
-  const email = $('lookupEmail').value.trim();
-
-  if (!email) {
-    showError('lookupError', t('pledge.errEmailRequired'));
-    return;
-  }
-  if (!isValidEmail(email)) {
-    showError('lookupError', t('pledge.errEmailFormat'));
-    return;
-  }
-
-  button.disabled = true;
-  button.textContent = t('pledge.btnChecking');
+// Load the signed-in user's stats + any existing pledge, then reveal the right
+// state: the existing-pledge review card (returning user) or the create flow.
+async function startPledgeFlow() {
+  await loadStats();
 
   try {
-    await loadStats();
-    const { response, data } = await lookupPledgeByEmail(email);
+    const { response, data } = await lookupPledgeByEmail(pledgeEmail);
+    const notFound = response.status === 404 || (data && data.message === 'not found');
 
-    if (!response.ok && data.message !== 'not found') {
-      throw new Error('Lookup failed');
-    }
-
-    if (data.message === 'not found') {
-      enterCreateMode(email);
+    if (response.ok && data && !notFound) {
+      $('authLoading').classList.add('hidden');
+      existingPledge = data;
+      isEditMode = false;
+      populateExistingSummary(data);
+      $('existingPledgeCard').classList.remove('hidden');
       return;
     }
-
-    pledgeEmail = email;
-    existingPledge = data;
-    isEditMode = false;
-    populateExistingSummary(data);
-    $('existingPledgeCard').classList.remove('hidden');
+    if (notFound) {
+      enterCreateMode(pledgeEmail); // hides authLoading via showFlowSection
+      return;
+    }
+    throw new Error('Lookup failed');
   } catch (error) {
-    console.error('Error looking up pledge:', error);
-    showError('lookupError', t('pledge.errLookup'));
-  } finally {
-    button.disabled = false;
-    button.textContent = t('pledge.continue');
+    // Don't guess — surface the failure so the user can retry rather than risk
+    // overwriting an existing pledge from a blank form.
+    console.error('Error loading existing pledge:', error);
+    showLookupError();
   }
 }
 
-function setupLookup() {
-  $('lookupButton').addEventListener('click', handleLookup);
+function setupExistingCard() {
   $('editExistingButton').addEventListener('click', enterEditMode);
+  $('authRetryButton').addEventListener('click', () => window.location.reload());
 }
 
 // On a language switch, refresh the strings JS renders at runtime (data-i18n
 // covers the static markup automatically).
 function refreshDynamicI18n() {
+  renderAuthStatus('pledgeAuth');
   if (existingPledge && !$('existingPledgeCard').classList.contains('hidden')) {
     populateExistingSummary(existingPledge);
   }
@@ -477,10 +475,20 @@ function refreshDynamicI18n() {
 
 async function initPledgePage() {
   await loadConfig();
-  setupLookup();
+  setupExistingCard();
   setupSimulator();
   setupPledgeForm();
   document.addEventListener('i18n:changed', refreshDynamicI18n);
+
+  // Gate the page (AUTH2): bounce a signed-out visitor to the auth screens.
+  const session = await Auth.requireAuth();
+  if (!session) {
+    return; // redirecting to auth.html
+  }
+
+  pledgeEmail = await Auth.getEmail();
+  await renderAuthStatus('pledgeAuth');
+  await startPledgeFlow();
 }
 
 if (document.readyState === 'loading') {

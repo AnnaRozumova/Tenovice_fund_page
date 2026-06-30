@@ -40,12 +40,15 @@ function updateProgressBar() {
   }, 100);
 }
 
-// Handle pledge button click
+// CTA button: pledging now requires an account (AUTH2, D18). Signed-in visitors
+// go straight to the pledge page; everyone else lands on the auth screens (which
+// return them to the pledge page after login). The home page itself stays public.
 function setupPledgeButton() {
   const pledgeButton = document.getElementById('pledgeButton');
 
-  pledgeButton.addEventListener('click', () => {
-    window.location.href = 'pledge.html';
+  pledgeButton.addEventListener('click', async () => {
+    const token = await Auth.getIdToken();
+    window.location.href = token ? 'pledge.html' : 'auth.html';
   });
 }
 
@@ -55,6 +58,10 @@ async function init() {
   updateProgressBar();
   await loadPledgesStats();
   setupPledgeButton();
+  // Show "Signed in as … · Sign out" when a session exists; keep its label in sync
+  // with the language toggle.
+  await renderAuthStatus('homeAuth');
+  document.addEventListener('i18n:changed', () => renderAuthStatus('homeAuth'));
 }
 
 // Run when DOM is ready

@@ -5,6 +5,62 @@ and how it was verified. Companion to `CLAUDE.md` (developer quick-start) and `d
 
 ---
 
+## 2026-06-30 — AUTH2: custom on-site auth screens + frontend wiring + localized emails
+
+**Why:** Phase AUTH step 2 (D18). AUTH1 created the identity store; AUTH2 makes the site talk to it —
+login / registration / email-verification / password-recovery screens, and gates the pledge flow behind a
+signed-in account. The API itself stays open (the Cognito JWT authorizer is AUTH3), so the token is already
+sent on every call but not yet required — nothing breaks while building.
+
+**What (frontend, `web/`):**
+- **Vendored** `amazon-cognito-identity-js` (v6.3.18 UMD) into `web/vendor/` — no build step; exposes the
+  global `AmazonCognitoIdentity`. Used for **SRP** login (password never sent to our code).
+- **`auth.html` + `auth.js`** — one page, five views toggled in JS (login / register / confirm-code /
+  forgot-password / reset-password) in the site's existing design, bilingual (i18n). Registration carries
+  the **email-safety note**. Client-side mirror of the Cognito password policy (12+ chars, 4 classes) and
+  the email format. `?next=` post-login redirect is sanitized to same-site relative targets only
+  (backslash-normalized) to prevent an open redirect.
+- **`auth-common.js`** — shared session/token helper (`Auth`): `getSession` (auto-refreshes via the refresh
+  token), `getIdToken`, `getEmail` (from id-token claims), `requireAuth` (route guard → bounce to
+  `auth.html?next=…`), **`apiFetch`** (attaches `Authorization: Bearer <idToken>`), and a "signed in as … ·
+  sign out" status bar (`renderAuthStatus`).
+- **`config.js`** — new `COGNITO` block (`USER_POOL_ID` / `CLIENT_ID` / `REGION`), per-stage like `API_URL`.
+- **`index.html` / `main.js`** — the "Make a Pledge" CTA routes signed-in visitors to `pledge.html`, everyone
+  else to `auth.html`; the home page stays public and shows the sign-out bar when signed in.
+- **`pledge.html` / `pledge.js`** — page is now gated (`requireAuth`); the **email-lookup step is removed**
+  (identity = the signed-in account; the email comes from the session and any existing pledge is loaded
+  automatically). All API calls go through `Auth.apiFetch`. A lookup failure now surfaces a retry instead of
+  silently dropping into a blank create form.
+- **i18n** — +`auth.*` keys + `pledge.checkingSignIn` / `pledge.errLookup` / `pledge.retry`; removed the dead
+  email-lookup keys. Parity holds (**182 keys / language**).
+
+**What (backend — localized auth emails):** Cognito's built-in verification email is generic + English-only.
+Added a **Custom Message Lambda** (`services/cognito_custom_message/index.py`, pure stdlib → no bundling),
+wired in `cognito.py` as the pool's `custom_message` trigger. It returns CZ or EN subject+body (with a short
+"what this is" explanation) based on the user's `locale` attribute — which `auth.js` sets at sign-up from the
+site language; default CZ (D7). Covers sign-up, code-resend, and forgot-password; other trigger sources fall
+through to Cognito's default. (Spam deliverability is separate and unsolved — inherent to Cognito's default
+sender; the real fix is SES with a verified domain, parked.)
+
+**Product decision (Ondra, 2026-06-30):** self sign-up stays **open to anyone** — no pre-sign-up
+allowlist/invite. The AUTH1 open question is closed; AUTH3 proceeds without a friends-only gate.
+
+**Verification:** i18n parity passes (182); `cdk/src` + the new Lambda ruff clean; services gate **90 passed**
+(no backend logic touched). The Custom Message handler unit-run across all trigger sources + locales (CZ/EN,
+default-CZ fallback, unknown-trigger → untouched; `{####}` always present). In-browser against the **live dev
+pool**: library + config load with no console errors, SRP round-trip returns a clean localized error for a
+bad login, view switching works, the pledge page redirects to `auth.html?next=pledge.html` when signed out,
+the home CTA routes to auth when signed out, and the auth card has no overflow at 375px. Full
+register→verify→login→pledge happy-path confirmed by the maintainer against the deployed dev pool. **Not yet
+deployed from this branch** (frontend + the new trigger Lambda land on the next `cdk deploy -c stage=dev`).
+
+**Known follow-ups for AUTH3:** the public home page calls `GET /stats` without a token — once the authorizer
+is on the single `ANY /{proxy+}` route, `/stats` (and any other home-page read) needs a public carve-out or
+the home call must tolerate a 401. And `GET /pledges/by-email?email=` should derive identity from the JWT
+claims instead of a query param (closes the email-in-URL pattern; "by-email" can become a "my pledge" call).
+
+---
+
 ## 2026-06-29 — AUTH1: Cognito user pool + app client (identity store, no authorizer yet)
 
 **Why:** start Phase AUTH (D18) — the whole API incl. the calculator moves behind a login; only the home

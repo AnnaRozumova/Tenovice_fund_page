@@ -26,7 +26,11 @@ AWS CDK (Python) describes & deploys all of the above.
 ```
 
 - **Frontend** `web/` — plain HTML/CSS/JS, **no build step** (no npm, no bundler). `<html lang="cs">`.
-  Bilingual (CZ default + EN, DE-ready) via `web/i18n.js` — see "Internationalization" below.
+  Bilingual (CZ default + EN, DE-ready) via `web/i18n.js` — see "Internationalization" below. **Auth (AUTH2):**
+  `auth.html`/`auth.js` are the custom login/register/verify/reset screens (Cognito SRP via the vendored
+  `web/vendor/amazon-cognito-identity.min.js`); `auth-common.js` holds the shared session/token helper `Auth`
+  (`requireAuth` gate, `apiFetch` bearer-token wrapper). The pledge page is gated behind a signed-in account
+  (no more email-lookup step); the home page stays public. The API is still open until the AUTH3 authorizer.
 - **Backend** `services/pledges_api/src/` — **one FastAPI app** run in a single Lambda via **Mangum**
   (R1, decision D19). `app.py` mounts the routers in `api/`; shared concerns are imported once — `db.py`
   (`get_table()`), `utils/http.py` (`json_response` / `DecimalJSONResponse`), `config_defaults.py`,
@@ -49,9 +53,13 @@ AWS CDK (Python) describes & deploys all of the above.
 - `constructs/s3_website.py` — public S3 static-website bucket; deploys `../web` and outputs the URL.
 - `constructs/cognito.py` — Cognito **user pool + public (no-secret) app client** for site login (AUTH1,
   D18): email sign-in, self sign-up + email verification, email-only password recovery, 12-char strong
-  password policy; SRP flow for custom on-site screens. **Identity store only** — no API authorizer is
-  attached yet (that lands in AUTH3), so the API stays open and behavior is unchanged. Prod pool is
-  retained + deletion-protected; dev is disposable. Outputs `UserPoolId` / `UserPoolClientId`.
+  password policy; SRP flow for custom on-site screens. Also wires a **Custom Message Lambda**
+  (`services/cognito_custom_message/`, pure stdlib, no bundling) as the pool's `custom_message` trigger —
+  it localizes the verification / reset emails to **CZ or EN** by the user's `locale` attribute (set at
+  sign-up from the site language; default CZ), covering sign-up / resend / forgot-password (AUTH2).
+  **No API authorizer is attached yet** (that lands in AUTH3), so the API stays open and behavior is
+  unchanged. Prod pool is retained + deletion-protected; dev is disposable. Outputs `UserPoolId` /
+  `UserPoolClientId`.
 
 ## API — 7 routes (one FastAPI app behind `ANY /{proxy+}`)
 
@@ -267,8 +275,9 @@ tooling and stays English. **Parity gate:** every language must define the same 
   environment (`os.environ`), which the CI/CD pipeline (D13) sources from SSM / Secrets Manager — it is
   **never committed**. If unset, `update_config` fails closed (every `POST /config` → 401). Validated with a
   constant-time compare; never logged. Editing happens over **HTTPS only** via `web/admin.html`.
-- **Frontend** (`web/config.js`): `API_URL`, plus `CURRENT_BALANCE` / `FUNDRAISING_GOAL` / `BREAKDOWN` as
-  **fallback defaults** (EUR). `loadConfig()` fetches `GET /config` on page load and overrides them (C1);
+- **Frontend** (`web/config.js`): `API_URL`, a `COGNITO` block (`USER_POOL_ID` / `CLIENT_ID` / `REGION` for
+  the login screens, AUTH2 — per-stage like `API_URL`), plus `CURRENT_BALANCE` / `FUNDRAISING_GOAL` /
+  `BREAKDOWN` as **fallback defaults** (EUR). `loadConfig()` fetches `GET /config` on page load and overrides them (C1);
   the hardcoded values are used only if that request fails. `web/admin.html` + `admin.js` (C2) edit the
   numbers: paste the secret, prefill from `GET /config`, save via `POST /config`.
   The home page shows a discreet link to the members-only dw-connect project page (D3); the project is

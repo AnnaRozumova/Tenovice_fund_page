@@ -7,6 +7,16 @@ const CONFIG = {
   // domain/HTTPS phase (or a same-origin path behind CloudFront).
   API_URL: 'https://wcu3d2uaf2.execute-api.eu-central-1.amazonaws.com',
 
+  // Cognito user pool for site login (AUTH1/AUTH2, decision D18). These are the
+  // dev stack's CDK outputs (UserPoolId / UserPoolClientId). The client is a
+  // public no-secret browser client (SRP). Per-stage, like API_URL above — prod
+  // gets its own pool/client. The region is implied by the pool id prefix.
+  COGNITO: {
+    REGION: 'eu-central-1',
+    USER_POOL_ID: 'eu-central-1_VyVmN4qrS',
+    CLIENT_ID: '7b2o4arvk4j5nfpaeh44plg5kc',
+  },
+
   // Fallback defaults (in EUR). The live values come from GET /config (the
   // editable CONFIG row); these are used only if that request fails. The
   // breakdown stores stable keys — the localized labels live in the i18n dict.
