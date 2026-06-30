@@ -5,6 +5,43 @@ and how it was verified. Companion to `CLAUDE.md` (developer quick-start) and `d
 
 ---
 
+## 2026-06-30 — Currency CZK/EUR: canonical CZK in DynamoDB, converted server-side by `?currency=` (D22, backend — step A)
+
+**Why:** The site shows CZK in Czech and EUR in English. Per Ondra (decision D22): DynamoDB stores **one
+canonical currency — CZK** (the real bank account is in koruna), and the API converts to the requested
+currency **at the boundary**, not in the frontend (true single source of truth, like the pledge math in D8).
+This is the **backend** half; the frontend wiring (sending `?currency=` per language, currency symbols) is a
+separate **step B** — deploy the two together.
+
+**What (backend, `services/pledges_api/`):**
+- **New `domain/currency.py`** (pure, AWS-free): `parse_currency` (param → `czk`/`eur`, defaults to canonical),
+  `to_display` (CZK → display currency, whole units, half-up), `to_canonical` (display → CZK; `round_result`
+  flag), `convert_fields` (convert named money fields in a dict), `normalize_amount` (convert `body['amount']`
+  in place for write paths).
+- **`config_defaults.py`** — defaults flipped to canonical **CZK**: goal **70,000,000** (≈ €2.89M, clean
+  round number), balance **7,750,400** (≈ €320k, provisional), breakdown in CZK; new **`DEFAULT_EXCHANGE_RATE`
+  = 24.22** (CZK per EUR).
+- **`domain/validation.py`** — `MAX_AMOUNT` 100,000 → **2,500,000 CZK** (~€100k; an EUR amount is normalized to
+  CZK before the cap applies); `validate_config_input` accepts an **optional `exchange_rate`** (positive number;
+  omitted → the write path preserves the existing rate so an admin tool that edits only the numbers can't wipe it).
+- **`api/` routes** — every read route (`/stats`, `/pledges`, `/pledges/by-email`, `/config`, `/calculate`)
+  takes `?currency=` and tags the response with `currency`; write routes (`POST /pledges`, `/calculate`)
+  normalize the incoming amount to CZK first. `exchange_rate` added to `GET`/`POST /config`. The rate read is
+  centralized in `api/config.py` (`read_exchange_rate` / `exchange_rate_of`); flat responses go through
+  `localize()`. **`contributors_count` and the `*_progress_pct` percentages are never converted**
+  (currency-invariant). `/calculate` reads STATS+CONFIG once each, and keeps full precision on the per-person
+  amount (rounds only the outputs) so rounding isn't amplified by the people/months multiplier.
+- The exchange rate lives in the `CONFIG` row beside `current_balance` (D22-storage; no new table, no SSM);
+  admin edits it via the AWS console for now.
+
+**Verified:** quality gate green on Python 3.14 — ruff clean, **118 passed** (new `domain/currency.py`
+unit tests + `tests/integration/test_currency_param.py` covering czk default + eur conversion across every
+endpoint, the write-path normalization, the no-amplification rounding, and a breakdown-without-`amount` edge).
+Also exercised live against the local FastAPI-over-moto harness (curl): `?currency=eur` divides by the rate,
+write stores canonical CZK, percentages stay equal across currencies. **Not deployed** (deploy with step B).
+
+---
+
 ## 2026-06-30 — Home CTA: button centered inside a big heart
 
 **Why:** Follow-up iteration on the previous home-CTA tweak (Anna/Martin preference). Instead of the heart

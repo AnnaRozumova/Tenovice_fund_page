@@ -40,8 +40,11 @@ class TestGetConfig:
         assert resp.status_code == 200
         body = resp.json()
 
-        assert body["current_balance"] == 320000
-        assert body["fundraising_goal"] == 2700000
+        # Canonical defaults are in CZK now (D22): goal = clean 70M CZK (≈ €2.89M).
+        assert body["current_balance"] == 7750400
+        assert body["fundraising_goal"] == 70000000
+        assert body["exchange_rate"] == 24.22
+        assert body["currency"] == "czk"
         keys = [item["key"] for item in body["breakdown"]]
         assert keys == ["new_gompa", "sangha_house", "basecamp_north"]
 
@@ -77,3 +80,45 @@ class TestGetConfig:
         for item in body["breakdown"]:
             assert "key" in item
             assert isinstance(item["amount"], int)
+
+    def test_currency_eur_converts_amounts_at_the_stored_rate(self, client_and_table):
+        """D22: ?currency=eur divides canonical CZK by the rate; the rate is unchanged."""
+        client, table = client_and_table
+        table.put_item(
+            Item={
+                "pledgeID": "CONFIG",
+                "current_balance": 2500000,  # CZK
+                "fundraising_goal": 70000000,  # CZK
+                "exchange_rate": 25,
+                "breakdown": [
+                    {"key": "new_gompa", "amount": 25000000},
+                    {"key": "sangha_house", "amount": 25000000},
+                    {"key": "basecamp_north", "amount": 20000000},
+                ],
+            }
+        )
+
+        body = client.get("/config", params={"currency": "eur"}).json()
+        assert body["currency"] == "eur"
+        assert body["current_balance"] == 100000  # 2,500,000 / 25
+        assert body["fundraising_goal"] == 2800000  # 70,000,000 / 25
+        assert body["breakdown"][0]["amount"] == 1000000  # 25,000,000 / 25
+        # The rate itself is currency-independent — returned as stored, not converted.
+        assert body["exchange_rate"] == 25
+
+    def test_currency_eur_tolerates_breakdown_item_without_amount(self, client_and_table):
+        """A hand-edited CONFIG breakdown item missing 'amount' must not 500 on the EUR
+        path (the conversion skips it rather than raising KeyError)."""
+        client, table = client_and_table
+        table.put_item(
+            Item={
+                "pledgeID": "CONFIG",
+                "current_balance": 100,
+                "fundraising_goal": 200,
+                "exchange_rate": 25,
+                "breakdown": [{"key": "new_gompa"}],
+            }
+        )
+        resp = client.get("/config", params={"currency": "eur"})
+        assert resp.status_code == 200
+        assert resp.json()["breakdown"][0]["key"] == "new_gompa"

@@ -6,10 +6,11 @@ from decimal import Decimal, InvalidOperation
 EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 
 # Provisional input caps. These guard STATS against fat-finger / abusive values.
-# Moving these into the editable CONFIG row is planned (Phase C). There is no
-# contributors cap: a saved pledge represents one person (B4); the "how many
-# people" what-if lives in the calculator/simulator, not the stored pledge.
-MAX_AMOUNT = Decimal("100000")
+# The amount cap is in the canonical currency CZK (D22): an EUR pledge is normalized to
+# CZK before validation, so the cap applies to the stored koruna amount (~€100k at a
+# typical rate). There is no contributors cap: a saved pledge represents one person
+# (B4); the "how many people" what-if lives in the calculator/simulator.
+MAX_AMOUNT = Decimal("2500000")
 MAX_MESSAGE_LENGTH = 500
 
 # The campaign breakdown directions, by stable identifier key. The CONFIG row
@@ -222,11 +223,14 @@ def validate_calculate_input(data: dict) -> dict:
 
 
 def validate_config_input(data: dict) -> dict:
-    """Validate an admin CONFIG update: balance, goal, and the 3-direction breakdown.
+    """Validate an admin CONFIG update: balance, goal, breakdown, and (optionally) rate.
 
-    Amounts are whole EUR (ints). ``current_balance`` may be 0; ``fundraising_goal``
-    must be > 0. The breakdown must list exactly the known direction keys, each with
-    a non-negative amount — display labels are not stored (they live in the i18n dict).
+    Amounts are whole **CZK** ints (the canonical currency, D22). ``current_balance``
+    may be 0; ``fundraising_goal`` must be > 0. The breakdown must list exactly the
+    known direction keys, each with a non-negative amount — display labels are not
+    stored (they live in the i18n dict). ``exchange_rate`` (CZK per EUR) is optional:
+    when omitted the write path preserves the existing rate, so an admin tool that only
+    edits the numbers can't clobber it; when present it must be a positive number.
     """
     current_balance = _require_non_negative_int(data, "current_balance")
 
@@ -258,8 +262,19 @@ def validate_config_input(data: dict) -> dict:
         missing = ", ".join(k for k in BREAKDOWN_KEYS if k not in seen_keys)
         raise ValueError(f"'breakdown' is missing required key(s): {missing}")
 
-    return {
+    validated = {
         "current_balance": current_balance,
         "fundraising_goal": fundraising_goal,
         "breakdown": breakdown,
     }
+
+    # The exchange rate is optional (CZK per EUR). When provided it must be a positive
+    # number; when omitted the write path keeps the existing rate (so admin tools that
+    # only edit the numbers don't reset it). It is a rate, not a whole-koruna amount, so
+    # a fractional value (e.g. 24.22) is allowed.
+    if data.get("exchange_rate") is not None:
+        validated["exchange_rate"] = _require_positive_decimal(
+            data, "exchange_rate", maximum=Decimal("100000")
+        )
+
+    return validated

@@ -98,7 +98,7 @@ Single DynamoDB table. PK `pledgeID` (String); GSI `EmailIndex` on `email` (proj
 |-------|------|-------|
 | `pledgeID` | String | UUID |
 | `email` | String | lowercased; the only identity field (never displayed, never on public endpoints) |
-| `amount` | Number | EUR; one-time amount, or per-month amount if monthly |
+| `amount` | Number | canonical **CZK**; one-time amount, or per-month amount if monthly (API converts to EUR by `?currency=`, D22) |
 | `is_monthly` | Bool | |
 | `campaign_total` | Number | the pledge's total campaign impact (see "Pledge math"); stored so it stays stable |
 | `created_at` | String | ISO timestamp |
@@ -137,7 +137,8 @@ never drift (D8/D15; consolidated in D2a).
   `total_impact = people * amount * (remaining_months if monthly else 1)`, and returns the projection toward
   the goal (`STATS` total + `CONFIG` goal → `projected_total`, progress %).
 
-`campaign_total` is stored per pledge so the value stays stable as months pass. Money is EUR, integer display.
+`campaign_total` is stored per pledge so the value stays stable as months pass. Money is stored in **canonical
+CZK** and converted to the requested currency (`?currency=czk|eur`) at the API boundary (D22), integer display.
 
 > The frontend holds **no copy** of this math (removed in D2): `web/pledge.js` calls `POST /calculate` on the
 > "Spočítat" button and only *displays* the returned result — single source of truth (D8/D15).
@@ -160,8 +161,8 @@ Locked decisions for the phase (full rationale lives in the project's decision l
 3. ~~**Harden `/pledges/by-email`**~~ — **done (B1)**; returns only the caller's own pledge fields.
 4. ~~**Canonicalize stats on `contributors_count`**~~ — **done (B2)**; frontend `pledgers_count` reads removed.
 5. ~~**One shared `response()`/`DecimalEncoder` util**~~ — **done (B2)**; all four handlers use `utils/response.py`.
-6. ~~**Add upper bounds** on `amount`~~ — **done (B3)**; also `message` length. Caps (`amount` ≤ 100,000,
-   `message` ≤ 500) are provisional constants in `domain/validation.py`, server-side only; they move to the
+6. ~~**Add upper bounds** on `amount`~~ — **done (B3)**; also `message` length. Caps (`amount` ≤ 2,500,000 CZK
+   since D22 (~€100k), `message` ≤ 500) are provisional constants in `domain/validation.py`, server-side only; they move to the
    `CONFIG` row in Phase C.
 7. ~~**Remove `contributors_count` from the pledge**~~ — **done (B4)**; a pledge is one person (the "how
    many people" what-if lives in the Phase-D calculator/simulator). No contributors cap; the field left the
