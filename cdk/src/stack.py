@@ -19,10 +19,17 @@ class FundraisingCalculatorStack(Stack):
         lambdas = LambdasConstruct(
             self, "Lambdas", config=config, pledges_table=db.pledges_table
         )
-        api = ApiConstruct(self, "Api", config=config, api_function=lambdas.api_function)
+        # The identity store (AUTH1) must exist before the API so its JWT authorizer
+        # (AUTH3) can reference the user pool + web client.
+        cognito = CognitoConstruct(self, "Cognito", config=config)
+        api = ApiConstruct(
+            self,
+            "Api",
+            config=config,
+            api_function=lambdas.api_function,
+            user_pool=cognito.user_pool,
+            user_pool_client=cognito.user_pool_client,
+        )
         S3WebsiteConstruct(self, "Website", config=config)
-        # Identity store only (AUTH1). The JWT authorizer that puts this pool in
-        # front of the API lands in AUTH3 — for now the API stays open.
-        CognitoConstruct(self, "Cognito", config=config)
 
         CfnOutput(self, "HttpApiUrl", value=api.http_api.api_endpoint)

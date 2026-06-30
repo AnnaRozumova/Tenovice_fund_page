@@ -59,11 +59,15 @@ and works on phone + desktop.
 - `constructs/dynamodb.py` — Pledges table (PK `pledgeID`) + `EmailIndex` GSI on `email`.
 - `constructs/lambdas.py` — the **single API Lambda** (Python 3.14, handler `app.handler`); its asset
   Docker-bundles FastAPI + Mangum (≥0.21, for 3.14 event-loop support) with the source.
-- `constructs/apigw.py` — HTTP API, CORS, a single `ANY /{proxy+}` route → the API Lambda.
+- `constructs/apigw.py` — HTTP API, CORS, the `ANY /{proxy+}` route → the API Lambda. **AUTH3:** a Cognito
+  JWT authorizer gates that proxy route; `GET /stats`, `ANY /config`, and `OPTIONS /{proxy+}` are declared as
+  separate unauthenticated routes (they win by route specificity) so the public home page, the shared-secret
+  admin write, and CORS preflight bypass the token check. The `$default` stage carries throttling (rate 20 /
+  burst 40) on every env.
 - `constructs/s3_website.py` — public static-website bucket; deploys `../web`.
-- `constructs/cognito.py` — Cognito **user pool + public app client** for site login (AUTH1, D18).
-  Identity store only: the JWT authorizer that will gate the API on the single proxy route lands in a
-  later step (AUTH3); for now the pool is created but **not wired** to the API, so behavior is unchanged.
+- `constructs/cognito.py` — Cognito **user pool + public app client** for site login (AUTH1, D18). The pool +
+  web client back the **AUTH3** JWT authorizer in `apigw.py`, so the API now requires a valid token (only the
+  home-page reads, the admin write, and preflight are public).
 
 ## API surface — route map
 

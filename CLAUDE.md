@@ -30,7 +30,9 @@ AWS CDK (Python) describes & deploys all of the above.
   `auth.html`/`auth.js` are the custom login/register/verify/reset screens (Cognito SRP via the vendored
   `web/vendor/amazon-cognito-identity.min.js`); `auth-common.js` holds the shared session/token helper `Auth`
   (`requireAuth` gate, `apiFetch` bearer-token wrapper). The pledge page is gated behind a signed-in account
-  (no more email-lookup step); the home page stays public. The API is still open until the AUTH3 authorizer.
+  (no more email-lookup step); the home page stays public. As of **AUTH3** the API enforces the token: the
+  whole API is behind a Cognito JWT authorizer except the home-page reads (`GET /stats`, `GET /config`), the
+  admin write (`POST /config`, own shared secret), and CORS preflight.
 - **Backend** `services/pledges_api/src/` — **one FastAPI app** run in a single Lambda via **Mangum**
   (R1, decision D19). `app.py` mounts the routers in `api/`; shared concerns are imported once — `db.py`
   (`get_table()`), `utils/http.py` (`json_response` / `DecimalJSONResponse`), `config_defaults.py`,
@@ -48,8 +50,12 @@ AWS CDK (Python) describes & deploys all of the above.
 - `constructs/lambdas.py` — **the single API Lambda** (Python 3.14, handler `app.handler`); the asset is
   Docker-bundled (`pip install -r requirements.txt -t /asset-output && cp -r src/. /asset-output`) so
   FastAPI + Mangum ship with the code. Read-write on the table.
-- `constructs/apigw.py` — HTTP API + CORS (`GET`/`POST`/`OPTIONS`, origins `*`) + a **single** `ANY /{proxy+}`
-  route → the API Lambda (FastAPI does the per-endpoint routing).
+- `constructs/apigw.py` — HTTP API + CORS (`GET`/`POST`/`OPTIONS`, origins `*`) + the `ANY /{proxy+}`
+  route → the API Lambda (FastAPI does the per-endpoint routing). **AUTH3:** a Cognito **JWT authorizer**
+  (`HttpUserPoolAuthorizer` over the AUTH1 pool + web client) is attached to the proxy route, so every
+  request needs a valid token, with three unauthenticated carve-out routes that win by route specificity —
+  `GET /stats`, `ANY /config` (public read + admin shared-secret write), and `OPTIONS /{proxy+}` (CORS
+  preflight carries no token). The `$default` stage gets **throttling** (rate 20 / burst 40, both envs).
 - `constructs/s3_website.py` — public S3 static-website bucket; deploys `../web` and outputs the URL.
 - `constructs/cognito.py` — Cognito **user pool + public (no-secret) app client** for site login (AUTH1,
   D18): email sign-in, self sign-up + email verification, email-only password recovery, 12-char strong
@@ -57,9 +63,8 @@ AWS CDK (Python) describes & deploys all of the above.
   (`services/cognito_custom_message/`, pure stdlib, no bundling) as the pool's `custom_message` trigger —
   it localizes the verification / reset emails to **CZ or EN** by the user's `locale` attribute (set at
   sign-up from the site language; default CZ), covering sign-up / resend / forgot-password (AUTH2).
-  **No API authorizer is attached yet** (that lands in AUTH3), so the API stays open and behavior is
-  unchanged. Prod pool is retained + deletion-protected; dev is disposable. Outputs `UserPoolId` /
-  `UserPoolClientId`.
+  The pool + web client back the **AUTH3** JWT authorizer in `apigw.py` (the API now requires a token).
+  Prod pool is retained + deletion-protected; dev is disposable. Outputs `UserPoolId` / `UserPoolClientId`.
 
 ## API — 7 routes (one FastAPI app behind `ANY /{proxy+}`)
 
@@ -70,11 +75,11 @@ per-endpoint Lambdas.
 |--------|------|------------------------------------------|-------|
 | GET | `/stats` | `stats.py` | reads the `STATS` row (running totals) |
 | GET | `/pledges` | `pledges.py:list_pledges` | `scan`; returns anonymous fields only |
-| POST | `/pledges` | `pledges.py:create_or_update_pledge` | upsert by email; adjusts `STATS` |
-| GET | `/pledges/by-email` | `pledges.py:get_pledge_by_email` | query `EmailIndex` (case-insensitive); returns **only the caller's own pledge, projected to an allowlist** (no `pledgeID`/timestamps; the email isn't echoed back either — H1) |
+| POST | `/pledges` | `pledges.py:create_or_update_pledge` | upsert keyed by the caller's identity; adjusts `STATS`. **AUTH3:** behind the authorizer the email is the verified JWT `email` claim — the body email is ignored (no impersonation) |
+| GET | `/pledges/by-email` | `pledges.py:get_pledge_by_email` | query `EmailIndex` (case-insensitive); returns **only the caller's own pledge, projected to an allowlist** (no `pledgeID`/timestamps; the email isn't echoed back either — H1). **AUTH3:** behind the authorizer the identity is the verified JWT `email` claim; `?email=` is ignored (effectively "my pledge"). Both handlers **fail closed** (401) on an authenticated request whose token has no `email` claim (e.g. an access token); the client-supplied email is honoured only when the app runs without the authorizer (local dev / tests) |
 | GET | `/config` | `config.py:get_config` | reads the `CONFIG` row (editable balance / goal / breakdown); documented defaults if the row is absent (C1) |
 | POST | `/config` | `config.py:update_config` | **admin-only** write of the `CONFIG` row; shared-secret bearer token, constant-time compare, fails closed (C2) |
-| POST | `/calculate` | `calculate.py` | **read-only** what-if simulator (D2a); computes impact + projection vs goal from the shared pledge math; reads `STATS`/`CONFIG`, writes nothing, no auth |
+| POST | `/calculate` | `calculate.py` | **read-only** what-if simulator (D2a); computes impact + projection vs goal from the shared pledge math; reads `STATS`/`CONFIG`, writes nothing. **AUTH3:** gated (login required) like the rest of the calculator |
 
 **Live dev API:** `https://wcu3d2uaf2.execute-api.eu-central-1.amazonaws.com` (region `eu-central-1`),
 deployed from `main` (stack `FundraisingCalculatorStack`). The table is **fresh** — `GET /stats` →
