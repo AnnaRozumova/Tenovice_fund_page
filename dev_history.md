@@ -5,6 +5,50 @@ and how it was verified. Companion to `CLAUDE.md` (developer quick-start) and `d
 
 ---
 
+## 2026-06-30 — AUTH3: enforce the API behind a Cognito JWT authorizer + throttling + identity from claims (D18)
+
+**Why:** AUTH1 created the user pool and AUTH2 wired the frontend to send `Bearer <idToken>`, but the API was
+still open — nobody checked the token. AUTH3 turns on the lock (D18: the whole API is behind login, only the
+home page is public).
+
+**What (infra, `cdk/`):**
+- **`constructs/apigw.py`** — attach a Cognito **`HttpUserPoolAuthorizer`** (over the AUTH1 pool + web client)
+  to the `ANY /{proxy+}` route, so every request needs a valid token. Three **unauthenticated carve-out
+  routes** are declared separately and win by HTTP-API route specificity (static path beats greedy `{proxy+}`;
+  specific method beats `ANY`): `GET /stats` and `ANY /config` (the public home page reads stats+config; the
+  admin `POST /config` keeps its own shared-secret auth, D6, so it must bypass Cognito too) and
+  `OPTIONS /{proxy+}` (the CORS preflight carries no token — without this carve-out the browser would block
+  every gated `POST`). One reused `HttpLambdaIntegration` across all routes. Added **throttling** on the
+  `$default` stage via the `CfnStage.default_route_settings` escape hatch (rate `API_THROTTLE_RATE=20` /
+  burst `API_THROTTLE_BURST=40`), both envs, so a flood can't run up the Lambda bill. WAF stays prod-only and
+  lands with CloudFront (D21 / Phase G — it can't attach to an HTTP API v2 directly).
+- **`stack.py`** — create `CognitoConstruct` before `ApiConstruct` and pass `user_pool` + `user_pool_client`
+  into the API so the authorizer can reference them.
+
+**What (backend, `services/pledges_api/src/api/pledges.py`):**
+- Identity now comes from the **verified JWT claims**, not client input. `_jwt_claims(request)` reads
+  `requestContext.authorizer.jwt.claims` (Mangum surfaces the event on `request.scope["aws.event"]`) and
+  returns `None` when the app runs **without** the authorizer (local dev / tests) vs a claims `dict` when the
+  request is **authenticated**. `_claim_email(claims)` takes only the verified `email` claim (no
+  `cognito:username` fallback — that would be a UUID for an email-alias pool).
+- `create_or_update_pledge` and `get_pledge_by_email`: when authenticated, the email/`?email=` from the client
+  is **ignored** in favour of the claim → closes the impersonation / enumeration hole. They **fail closed**
+  (401) on an authenticated request whose token lacks an `email` claim (e.g. an *access* token — the gateway
+  authorizer admits id and access tokens; only the id token carries `email`). The client-supplied email is
+  honoured only with no authorizer (local dev / tests), so the harness and existing tests keep working.
+
+**Frontend:** no change needed — AUTH2 already sends the id token on gated calls (`Auth.apiFetch`) and the
+home page reads `/stats` + `/config` with a plain tokenless `fetch` (both carve-outs).
+
+**Verified:** quality gate green — `ruff` clean, **122 passed** (+4: two prove identity comes from the claim
+not the body/query; two prove fail-closed 401 when the token has no `email` claim) on Python 3.14;
+`ruff check src` clean in `cdk/`. CDK **synth-check** (assertions.Template, no Docker, dev + prod): exactly one
+JWT authorizer, the proxy route is JWT-gated, the three carve-outs are `AuthorizationType=NONE`, and the stage
+has `DefaultRouteSettings` rate 20 / burst 40. `/code-review` high (8 finder angles + verify): the fail-open
+fallback was the key finding and is fixed (fail-closed above); CDK routing / CORS / throttle / id-token
+audience all reviewed clean. **Not deployed** (the authorizer is a gateway feature — live 401-unauth /
+200-with-token verification happens on Martin's `cdk deploy -c stage=dev`, Docker on).
+
 ## 2026-06-30 — Currency CZK/EUR: frontend follows the page language (D22, frontend — step B)
 
 **Why:** Step A made the API store canonical CZK and convert by `?currency=`. Step B wires the frontend so

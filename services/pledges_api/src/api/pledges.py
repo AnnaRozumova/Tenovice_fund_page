@@ -41,6 +41,44 @@ PLEDGE_FIELDS = (
 )
 
 
+def _jwt_claims(request: Request) -> dict | None:
+    """The verified Cognito JWT claims when the request passed the API-Gateway
+    authorizer (AUTH3), else ``None``.
+
+    API Gateway puts the validated token claims at
+    ``requestContext.authorizer.jwt.claims``; Mangum exposes the raw event on the ASGI
+    scope as ``aws.event``. The return value distinguishes two regimes, so the handlers
+    can fail **closed**:
+
+    - ``None`` — the app is running **without** the authorizer (local dev / tests). Only
+      then may a handler trust a client-supplied email.
+    - a ``dict`` (possibly empty) — the request is **authenticated**; identity must come
+      from these claims. A client-supplied email is never trusted here, and a token that
+      lacks the ``email`` claim (e.g. an *access* token instead of the id token — the
+      gateway admits both) yields no email, so the handler rejects rather than falling
+      back to attacker-controlled input.
+    """
+    event = request.scope.get("aws.event")
+    if not isinstance(event, dict):
+        return None
+    authorizer = event.get("requestContext", {}).get("authorizer")
+    if not isinstance(authorizer, dict):
+        return None
+    claims = authorizer.get("jwt", {}).get("claims")
+    return claims if isinstance(claims, dict) else {}
+
+
+def _claim_email(claims: dict) -> str | None:
+    """The verified email from JWT claims, lowercased — or ``None`` if absent.
+
+    Only the ``email`` claim is used: this pool signs in by email (cognito.py), the id
+    token always carries a verified ``email``, and ``cognito:username`` would be the
+    opaque user id (not an email) for an email-alias pool, so it must never be a fallback.
+    """
+    email = claims.get("email")
+    return email.strip().lower() if email else None
+
+
 @router.get("/pledges")
 def list_pledges(currency: str | None = None):
     currency = parse_currency(currency)
@@ -73,16 +111,30 @@ def list_pledges(currency: str | None = None):
 
 
 @router.get("/pledges/by-email")
-def get_pledge_by_email(email: str | None = None, currency: str | None = None):
+def get_pledge_by_email(
+    request: Request, email: str | None = None, currency: str | None = None
+):
     currency = parse_currency(currency)
-    if not email:
+    # AUTH3: behind the gateway authorizer the identity is the verified email claim and
+    # the client-supplied ?email= is ignored — so the query param can't be used to read
+    # someone else's pledge (effectively a "my pledge" lookup). An authenticated request
+    # with no email claim (e.g. an access token) is rejected, not served from client
+    # input. The ?email= path is reached only with no authorizer (local dev / tests).
+    claims = _jwt_claims(request)
+    if claims is not None:
+        identity = _claim_email(claims)
+        if not identity:
+            return json_response(401, {"error": "Unauthorized"})
+    else:
+        identity = email.strip().lower() if email else None
+    if not identity:
         return json_response(400, {"message": "email query parameter is required"})
 
     table = get_table()
     try:
         result = table.query(
             IndexName="EmailIndex",
-            KeyConditionExpression=Key("email").eq(email.strip().lower()),
+            KeyConditionExpression=Key("email").eq(identity),
             Limit=1,
         )
     except ClientError:
@@ -104,6 +156,19 @@ async def create_or_update_pledge(request: Request):
         body = json.loads(await request.body() or b"{}")
     except json.JSONDecodeError:
         return json_response(400, {"error": "Invalid JSON in request body"})
+
+    # AUTH3: a pledge is keyed to the *authenticated* user. Behind the gateway authorizer
+    # the email comes from the verified claims and the body's email is ignored — that's
+    # what stops one user from creating or editing a pledge under someone else's email.
+    # An authenticated request with no email claim (e.g. an access token) is rejected
+    # rather than falling back to the attacker-controlled body. With no authorizer (local
+    # dev / tests) the body email is used and validated below.
+    claims = _jwt_claims(request)
+    if claims is not None:
+        identity = _claim_email(claims)
+        if not identity:
+            return json_response(401, {"error": "Unauthorized"})
+        body["email"] = identity
 
     table = get_table()
 
