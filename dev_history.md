@@ -5,6 +5,31 @@ and how it was verified. Companion to `CLAUDE.md` (developer quick-start) and `d
 
 ---
 
+## 2026-06-30 — Home CTA: the heart *is* the button (no "Make a Pledge" button)
+
+**Why:** Small UX tweak between AUTH2 and AUTH3. On the home page the "Make a Pledge" wording belongs
+*after* login (under the calculator), not on the public landing card. The call to action is now the heart
+itself — bigger and clickable — with only the heading below it.
+
+**What (frontend, `web/`):**
+- **`index.html`** — replaced the decorative `<div class="heart-icon">` + the separate
+  `<button class="cta-button" id="pledgeButton">Make a Pledge</button>` with a single
+  `<button class="heart-button" id="pledgeButton">` wrapping the heart `<span>`. The "Make a Pledge" text is
+  gone from the page; only the heading **"Buď srdcem toho všeho" / "Be heart of it"** stays, below the heart.
+  Accessibility kept via a localized `aria-label` (`data-i18n-aria-label="index.ctaButton"`) so the button
+  still announces its purpose without visible text.
+- **`style.css`** — new `.heart-button` (transparent, no border, pointer cursor, `:hover` `scale(1.08)`,
+  keyboard `:focus-visible` outline); the heart grew from `4rem` to `6rem`. The heartbeat animation is
+  unchanged.
+- **Behavior unchanged** — the click handler still keys off `id="pledgeButton"` (`main.js`), so signed-in
+  visitors go to `pledge.html` and everyone else to `auth.html`. No i18n keys added/removed (parity holds at
+  182/lang).
+
+**Verified:** served `web/` locally; heart renders at 96px, heading reads "Buď srdcem toho všeho", the old
+button is gone, and clicking the heart (signed-out) navigates to `auth.html`.
+
+---
+
 ## 2026-06-30 — AUTH2: custom on-site auth screens + frontend wiring + localized emails
 
 **Why:** Phase AUTH step 2 (D18). AUTH1 created the identity store; AUTH2 makes the site talk to it —

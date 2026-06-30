@@ -330,9 +330,36 @@ body {
   color: white;
 }
 
-.heart-icon {
-  font-size: 4rem;
+/* The heart itself is the call to action: clicking it starts the pledge flow
+   (login/register, then the calculator). No separate "Make a Pledge" button. */
+.heart-button {
+  display: inline-block;
+  padding: 0;
   margin-bottom: 20px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  line-height: 1;
+  transition: var(--transition);
+}
+
+.heart-button:hover {
+  transform: scale(1.08);
+}
+
+.heart-button:active {
+  transform: scale(1.02);
+}
+
+.heart-button:focus-visible {
+  outline: 3px solid rgba(255, 255, 255, 0.85);
+  outline-offset: 8px;
+  border-radius: 50%;
+}
+
+.heart-icon {
+  display: block;
+  font-size: 6rem;
   animation: heartbeat 1.5s ease-in-out infinite;
 }
 
