@@ -30,9 +30,11 @@ AWS CDK (Python) describes & deploys all of the above.
   `auth.html`/`auth.js` are the custom login/register/verify/reset screens (Cognito SRP via the vendored
   `web/vendor/amazon-cognito-identity.min.js`); `auth-common.js` holds the shared session/token helper `Auth`
   (`requireAuth` gate, `apiFetch` bearer-token wrapper). The pledge page is gated behind a signed-in account
-  (no more email-lookup step) and is **one page**: a returning user lands straight in edit mode with their
-  pledge pre-filled (no separate "existing pledge found" card), a new user gets the same page with an empty
-  form. The home page stays public. As of **AUTH3** the API enforces the token: the
+  (no more email-lookup step) and is **one page**. Since Phase M (D23) an account may hold **several** pledges,
+  so zone 3 is a **list of the account's pledges** (rows with Edit / Delete) plus "Add another pledge"; one
+  shared form creates (`POST`) or edits (`PUT /pledges/{id}`) a single pledge, driven by an `editingId` state,
+  and Delete calls `DELETE /pledges/{id}` then re-fetches. A new account with no pledges lands straight in the
+  empty create form. The home page stays public. As of **AUTH3** the API enforces the token: the
   whole API is behind a Cognito JWT authorizer except the home-page reads (`GET /stats`, `GET /config`), the
   admin write (`POST /config`, own shared secret), and CORS preflight.
 - **Backend** `services/pledges_api/src/` — **one FastAPI app** run in a single Lambda via **Mangum**

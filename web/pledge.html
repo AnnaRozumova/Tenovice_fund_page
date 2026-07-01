@@ -155,50 +155,67 @@
         <span id="supportersStripText"></span>
       </section>
 
-      <!-- Zone 3: the user's own one-person pledge (saves to DB) -->
+      <!-- Zone 3: the account's pledges. Since Phase M (D23) one account may hold
+           several — shown as a list of rows, each editable/deletable, plus an
+           "add another" that opens the form. The same form creates (POST) or edits
+           (PUT /{id}) a single pledge. -->
       <div class="pledge-wrap">
         <div class="zone-divider"><span data-i18n="pledge.zoneDivider">Now add your own pledge</span></div>
 
         <section class="pledge-card">
-          <h2 id="pledgeFormTitle">Add your pledge</h2>
-          <p class="section-intro center" id="pledgeFormIntro">This is your personal pledge (one person).</p>
-
-          <form id="pledgeForm" class="pledge-form" novalidate>
-            <div class="form-field">
-              <label for="amount" data-i18n="pledge.fieldAmountEur">Amount (EUR)</label>
-              <input id="amount" name="amount" type="number" min="1" max="100000" step="1" required>
-            </div>
-
-            <div class="form-field checkbox-field">
-              <label class="checkbox-label" for="is_monthly">
-                <input id="is_monthly" name="is_monthly" type="checkbox">
-                <span data-i18n="pledge.monthlyCheckbox">This is a monthly recurring pledge</span>
-              </label>
-            </div>
-
-            <div id="monthlyFields" class="hidden" aria-hidden="true">
-              <div class="form-field">
-                <label for="months" data-i18n="pledge.months">Number of months</label>
-                <span class="field-hint" data-i18n="pledge.monthsHint">For how many months you would contribute (from now).</span>
-                <input id="months" name="months" type="number" min="1" max="600" step="1" placeholder="12">
-              </div>
-            </div>
-
-            <div class="form-field">
-              <label for="message" data-i18n="pledge.fieldMessageOptional">Message (optional)</label>
-              <textarea id="message" name="message" rows="3" maxlength="500" data-i18n-placeholder="pledge.msgPlaceholder" placeholder="Optional message to accompany the pledge"></textarea>
-            </div>
-
-            <div id="formError" class="form-message form-message-error hidden" role="alert"></div>
-
+          <!-- List of the account's pledges (shown when there is at least one) -->
+          <div id="pledgeList" class="pledge-list hidden">
+            <h2 data-i18n="pledge.listTitle">Your pledges</h2>
+            <p class="section-intro center" data-i18n="pledge.listIntro">These are your pledges. You can add another, edit or remove any of them.</p>
+            <ul id="pledgeListItems" class="pledge-rows"></ul>
             <div class="form-actions center-actions">
-              <button type="submit" class="cta-button form-submit-button" id="savePledgeButton" data-i18n="pledge.save">Save pledge</button>
+              <button type="button" class="cta-button" id="addPledgeButton" data-i18n="pledge.addAnother">Add another pledge</button>
             </div>
+          </div>
 
-            <p class="pledge-note center" data-i18n="pledge.publicPromiseNote">
-              A pledge is a public promise — no money is sent through the site. After saving you will see the bank details and QR codes.
-            </p>
-          </form>
+          <!-- Create / edit form (one pledge at a time) -->
+          <div id="pledgeFormWrap" class="hidden">
+            <h2 id="pledgeFormTitle">Add your pledge</h2>
+            <p class="section-intro center" id="pledgeFormIntro">This is your personal pledge (one person).</p>
+
+            <form id="pledgeForm" class="pledge-form" novalidate>
+              <div class="form-field">
+                <label for="amount" data-i18n="pledge.fieldAmountEur">Amount (EUR)</label>
+                <input id="amount" name="amount" type="number" min="1" max="100000" step="1" required>
+              </div>
+
+              <div class="form-field checkbox-field">
+                <label class="checkbox-label" for="is_monthly">
+                  <input id="is_monthly" name="is_monthly" type="checkbox">
+                  <span data-i18n="pledge.monthlyCheckbox">This is a monthly recurring pledge</span>
+                </label>
+              </div>
+
+              <div id="monthlyFields" class="hidden" aria-hidden="true">
+                <div class="form-field">
+                  <label for="months" data-i18n="pledge.months">Number of months</label>
+                  <span class="field-hint" data-i18n="pledge.monthsHint">For how many months you would contribute (from now).</span>
+                  <input id="months" name="months" type="number" min="1" max="600" step="1" placeholder="12">
+                </div>
+              </div>
+
+              <div class="form-field">
+                <label for="message" data-i18n="pledge.fieldMessageOptional">Message (optional)</label>
+                <textarea id="message" name="message" rows="3" maxlength="500" data-i18n-placeholder="pledge.msgPlaceholder" placeholder="Optional message to accompany the pledge"></textarea>
+              </div>
+
+              <div id="formError" class="form-message form-message-error hidden" role="alert"></div>
+
+              <div class="form-actions center-actions">
+                <button type="submit" class="cta-button form-submit-button" id="savePledgeButton" data-i18n="pledge.save">Save pledge</button>
+                <button type="button" class="text-link cancel-link hidden" id="cancelPledgeButton" data-i18n="pledge.cancel">Cancel</button>
+              </div>
+
+              <p class="pledge-note center" data-i18n="pledge.publicPromiseNote">
+                A pledge is a public promise — no money is sent through the site. After saving you will see the bank details and QR codes.
+              </p>
+            </form>
+          </div>
         </section>
       </div>
     </div>

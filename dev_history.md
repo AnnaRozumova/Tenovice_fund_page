@@ -5,6 +5,37 @@ and how it was verified. Companion to `CLAUDE.md` (developer quick-start) and `d
 
 ---
 
+## 2026-07-01 — M2: multiple pledges per account (frontend) — list + add / edit / delete
+
+**Why:** Ship the UI for M1's multi-pledge backend (D23). The pledge page showed a single pledge (create or
+edit); it now shows the account's pledges as a **list** so a person can add another, edit or delete any of
+them over the multi-year campaign.
+
+**What (frontend only — `web/`):**
+- **`pledge.html`** — zone 3 split into a **list** (`#pledgeList`: `<ul#pledgeListItems>` + "Add another
+  pledge") and the create/edit **form** (`#pledgeFormWrap`), with a new **Cancel** button.
+- **`pledge.js`** — rewired zone 3 around two state vars (`pledges[]`, `editingId`): `loadPledges()` reads the
+  `by-email` **list**; `renderPledgeRows()` builds each row with `document.createElement` + per-row Edit/Delete
+  listeners (the message goes in via **`textContent`, never `innerHTML`** — it's user input); `openCreateForm` /
+  `openEditForm(id)` / `cancelForm` toggle list↔form; `submitPledge` sends **`POST`** (create → redirect to
+  `success.html`) or **`PUT /pledges/{id}`** (edit → back to the refreshed list) by `editingId`; `deletePledgeRow`
+  confirms, calls **`DELETE /pledges/{id}`**, then `reloadPledges()` (re-fetch list **+ stats** so the supporters
+  headline follows). An empty account drops straight into the create form. `refreshDynamicI18n` re-fetches the
+  list in the new currency on a language switch (re-fills an open edit form, relabels a create form). Removed the
+  old single-pledge path (`existingPledge`/`isEditMode`/`enterEditMode`/`enterCreateMode`/`lookupPledgeByEmail`).
+- **`i18n.js`** — +11 keys (CZ+EN): `pledge.listTitle` / `listIntro` / `addAnother` / `rowOneTime` / `rowMonthly`
+  / `rowImpact` / `edit` / `delete` / `cancel` / `deleteConfirm` / `errDelete`; `errLookup` pluralized. Parity 166.
+- **`style.css`** — `.pledge-list` / `.pledge-rows` / `.pledge-row*` / `.row-btn` (edit/delete); rows stack on
+  narrow screens (≤480px).
+
+**Verified (browser, against the local M1 backend over the dev harness — no deploy needed):** login gate +
+identity from the token; empty account → create form; create → `POST` → `success.html`; list renders (rows
+newest-first, amount, type incl. "monthly · N months", impact, message, edit/delete); edit → pre-fill → `PUT`
+→ refreshed list; delete → row removed, stats update, supporters = **distinct emails** (19 → 20 → 19); add /
+cancel; mobile 375px no overflow (rows stack); CZ↔EN re-fetches in EUR and re-renders; 0 console errors.
+`node --check` clean, i18n parity 166, `/code-review` applied. **Not deployed** — ships with M1 in one
+`cdk deploy` after both merge. Branch `39-multiple-pledges-frontend`.
+
 ## 2026-07-01 — M1: multiple pledges per account (backend) — no upsert, PUT/DELETE, distinct-email supporters
 
 **Why:** The campaign runs for years, so one person may want several pledges — e.g. a one-time gift plus a

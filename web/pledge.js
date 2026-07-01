@@ -6,9 +6,11 @@
 //      /calculate -> render the returned result. No math in JS (single source of
 //      truth is the backend, D8/D15); the call fires on the button, never on every
 //      keystroke (Ondra: one request per keystroke would be wasteful).
-//   2. The user's own one-person pledge (zone 3): POST /pledges. No "how many
+//   2. The account's pledges (zone 3): since Phase M (D23) one account may hold
+//      several, shown as a list of rows — each edited (PUT /pledges/{id}) or deleted
+//      (DELETE /pledges/{id}), plus "add another" (POST /pledges). No "how many
 //      people" field (that's the simulator) and no email field (known from the
-//      session). 1 pledge = 1 supporter (B4).
+//      session). Supporters count distinct accounts, not pledges.
 // Every API call goes through Auth.apiFetch, which attaches the bearer id-token
 // (the authorizer that requires it lands in AUTH3 — until then the API is open).
 
@@ -30,8 +32,8 @@ let currentStats = {
 };
 
 let pledgeEmail = '';
-let existingPledge = null;
-let isEditMode = false;
+let pledges = []; // the account's pledges (Phase M/D23 — one account may have several)
+let editingId = null; // pledge_id being edited, or null when the form is in create mode
 let simIsMonthly = false;
 let lastCalc = null; // last /calculate result, kept so a language switch can re-render it
 
@@ -322,39 +324,63 @@ async function submitPledge(event) {
   button.disabled = true;
   button.textContent = t('pledge.btnSaving');
 
+  // Editing an existing pledge → PUT /pledges/{id}; a new one → POST /pledges.
+  const editing = Boolean(editingId);
+  const path = editing ? `/pledges/${encodeURIComponent(editingId)}` : '/pledges';
+
+  let response = null;
   try {
-    const response = await Auth.apiFetch(withCurrency('/pledges'), {
-      method: 'POST',
+    response = await Auth.apiFetch(withCurrency(path), {
+      method: editing ? 'PUT' : 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(buildPayload(values)),
     });
-    if (!response.ok) {
-      throw new Error('Failed to save pledge');
-    }
-    // Tell the success page which payment path to show: one-time -> QR,
-    // monthly -> standing-order bank details (E1).
-    const type = values.is_monthly ? 'monthly' : 'one-time';
-    window.location.href = `success.html?type=${type}`;
   } catch (error) {
-    console.error('Error saving pledge:', error);
+    response = null;
+  }
+
+  if (!response || !response.ok) {
+    console.error('Error saving pledge');
     showError('formError', t('pledge.errSave'));
     button.disabled = false;
     button.textContent = t('pledge.save');
+    return;
+  }
+
+  // Saved. A new pledge → the payment path (one-time → QR, monthly → standing order, E1).
+  if (!editing) {
+    const type = values.is_monthly ? 'monthly' : 'one-time';
+    window.location.href = `success.html?type=${type}`;
+    return;
+  }
+
+  // Edit saved → back to the (refreshed) list. The pledge is already stored, so a reload
+  // hiccup must NOT read as a save failure; fall back to rendering what we have.
+  editingId = null;
+  button.disabled = false;
+  button.textContent = t('pledge.save');
+  try {
+    await reloadPledges();
+  } catch (error) {
+    console.error('Error refreshing after edit:', error);
+    renderZone3();
   }
 }
 
 function setupPledgeForm() {
   $('is_monthly').addEventListener('change', toggleMonthlyFields);
   $('pledgeForm').addEventListener('submit', submitPledge);
+  $('addPledgeButton').addEventListener('click', openCreateForm);
+  $('cancelPledgeButton').addEventListener('click', cancelForm);
 }
 
-// Zone-3 heading/intro depend on create vs edit, so they are set in JS and
+// Zone-3 form heading/intro depend on create vs edit, so they are set in JS and
 // re-applied on a language switch (data-i18n covers the rest of the markup).
 function setFormModeText() {
-  $('pledgeFormTitle').textContent = isEditMode
+  $('pledgeFormTitle').textContent = editingId
     ? t('pledge.formTitleEdit')
     : t('pledge.zoneHeading');
-  $('pledgeFormIntro').textContent = isEditMode
+  $('pledgeFormIntro').textContent = editingId
     ? t('pledge.formIntroEdit')
     : t('pledge.zoneIntro');
 }
@@ -382,42 +408,175 @@ function showFlowSection() {
   renderSupporters();
   $('simGoalAmount').textContent = formatCurrency(CONFIG.FUNDRAISING_GOAL);
   renderSimPlaceholder();
+}
+
+// ---- zone-3: list vs form visibility ----
+
+function showList() {
+  $('pledgeList').classList.remove('hidden');
+  $('pledgeFormWrap').classList.add('hidden');
+}
+
+function showForm() {
+  $('pledgeFormWrap').classList.remove('hidden');
+  $('pledgeList').classList.add('hidden');
+  // "Cancel" only makes sense when there's a list to return to.
+  $('cancelPledgeButton').classList.toggle('hidden', pledges.length === 0);
+}
+
+// Human label for a pledge row's type ("one-time", or "monthly · N months").
+function pledgeTypeLabel(pledge) {
+  if (!pledge.is_monthly) {
+    return t('pledge.rowOneTime');
+  }
+  if (pledge.end_month && pledge.end_year) {
+    const months = endDateToMonths(pledge.end_month, pledge.end_year);
+    return `${t('pledge.rowMonthly')} · ${t('sim.durationMonths', { n: months })}`;
+  }
+  return t('pledge.rowMonthly');
+}
+
+function renderPledgeRows() {
+  const list = $('pledgeListItems');
+  list.innerHTML = '';
+
+  pledges.forEach((pledge) => {
+    const row = document.createElement('li');
+    row.className = 'pledge-row';
+
+    const info = document.createElement('div');
+    info.className = 'pledge-row-info';
+
+    const head = document.createElement('div');
+    head.className = 'pledge-row-head';
+    const amount = document.createElement('span');
+    amount.className = 'pledge-row-amount';
+    amount.textContent = formatCurrency(Number(pledge.amount));
+    const type = document.createElement('span');
+    type.className = 'pledge-row-type';
+    type.textContent = pledgeTypeLabel(pledge);
+    head.appendChild(amount);
+    head.appendChild(type);
+    info.appendChild(head);
+
+    const impact = document.createElement('div');
+    impact.className = 'pledge-row-impact';
+    impact.textContent = t('pledge.rowImpact', {
+      amount: formatCurrency(Number(pledge.campaign_total)),
+    });
+    info.appendChild(impact);
+
+    if (pledge.message) {
+      const msg = document.createElement('div');
+      msg.className = 'pledge-row-message';
+      // textContent — the message is user-controlled; never inject it as HTML.
+      msg.textContent = pledge.message;
+      info.appendChild(msg);
+    }
+
+    const actions = document.createElement('div');
+    actions.className = 'pledge-row-actions';
+    const editBtn = document.createElement('button');
+    editBtn.type = 'button';
+    editBtn.className = 'row-btn row-edit';
+    editBtn.textContent = t('pledge.edit');
+    editBtn.addEventListener('click', () => openEditForm(pledge.pledge_id));
+    const delBtn = document.createElement('button');
+    delBtn.type = 'button';
+    delBtn.className = 'row-btn row-delete';
+    delBtn.textContent = t('pledge.delete');
+    delBtn.addEventListener('click', () => deletePledgeRow(pledge.pledge_id));
+    actions.appendChild(editBtn);
+    actions.appendChild(delBtn);
+
+    row.appendChild(info);
+    row.appendChild(actions);
+    list.appendChild(row);
+  });
+}
+
+// Render zone 3 from the current `pledges`: a non-empty account sees the list; an
+// empty one drops straight into the create form (nothing to list yet).
+function renderZone3() {
+  if (pledges.length > 0) {
+    renderPledgeRows();
+    showList();
+  } else {
+    openCreateForm();
+  }
+}
+
+function openCreateForm() {
+  editingId = null;
   setFormModeText();
-}
-
-function enterCreateMode(email) {
-  pledgeEmail = email;
-  existingPledge = null;
-  isEditMode = false;
-  showFlowSection();
   fillPledgeForm({ amount: '', is_monthly: false, end_month: '', end_year: '', message: '' });
+  hideError('formError');
+  showForm();
 }
 
-function enterEditMode() {
-  if (!existingPledge) {
+function openEditForm(id) {
+  const pledge = pledges.find((p) => p.pledge_id === id);
+  if (!pledge) {
     return;
   }
-  isEditMode = true;
-  showFlowSection();
-  fillPledgeForm(existingPledge);
+  editingId = id;
+  setFormModeText();
+  fillPledgeForm(pledge);
+  hideError('formError');
+  showForm();
 }
 
-async function lookupPledgeByEmail(email) {
-  const response = await Auth.apiFetch(
-    withCurrency(`/pledges/by-email?email=${encodeURIComponent(email)}`)
-  );
-  // Guard the parse: an error response may carry a non-JSON body (gateway HTML).
-  let data = null;
-  try {
-    data = await response.json();
-  } catch (error) {
-    data = null;
+function cancelForm() {
+  // Back to the list when there is one; on an empty account the create form is the
+  // only view, so there is nothing to cancel to.
+  if (pledges.length > 0) {
+    renderPledgeRows();
+    showList();
   }
-  return { response, data };
 }
 
-// Show the lookup-failed state inside the gate card with a retry, instead of
-// silently dropping a returning pledger into the empty create form.
+// Fetch the account's pledges (a list since Phase M/D23). Throws on a failed request
+// so the caller can show the retry state instead of dropping the user into a blank form.
+async function loadPledges() {
+  const response = await Auth.apiFetch(
+    withCurrency(`/pledges/by-email?email=${encodeURIComponent(pledgeEmail)}`)
+  );
+  if (!response.ok) {
+    throw new Error('Failed to load pledges');
+  }
+  const data = await response.json();
+  pledges = Array.isArray(data.pledges) ? data.pledges : [];
+}
+
+// Re-fetch pledges + stats and re-render zone 3 (after an edit or delete).
+async function reloadPledges() {
+  await loadPledges();
+  await loadStats();
+  renderSupporters();
+  renderZone3();
+}
+
+async function deletePledgeRow(id) {
+  if (!window.confirm(t('pledge.deleteConfirm'))) {
+    return;
+  }
+  try {
+    const response = await Auth.apiFetch(
+      `/pledges/${encodeURIComponent(id)}?email=${encodeURIComponent(pledgeEmail)}`,
+      { method: 'DELETE' }
+    );
+    if (!response.ok) {
+      throw new Error('Failed to delete pledge');
+    }
+    await reloadPledges();
+  } catch (error) {
+    console.error('Error deleting pledge:', error);
+    window.alert(t('pledge.errDelete'));
+  }
+}
+
+// Show the load-failed state inside the gate card with a retry, instead of silently
+// dropping a returning pledger into an empty form.
 function showLookupError() {
   $('authLoadingText').classList.add('hidden');
   $('authLoadingError').classList.remove('hidden');
@@ -429,25 +588,14 @@ function showLookupError() {
 // user gets the empty create form.
 async function startPledgeFlow() {
   await loadStats();
-
   try {
-    const { response, data } = await lookupPledgeByEmail(pledgeEmail);
-    const notFound = response.status === 404 || (data && data.message === 'not found');
-
-    if (response.ok && data && !notFound) {
-      existingPledge = data;
-      enterEditMode(); // hides authLoading via showFlowSection, pre-fills the form
-      return;
-    }
-    if (notFound) {
-      enterCreateMode(pledgeEmail); // hides authLoading via showFlowSection
-      return;
-    }
-    throw new Error('Lookup failed');
+    await loadPledges();
+    showFlowSection();
+    renderZone3(); // list if the account has pledges, else the empty create form
   } catch (error) {
     // Don't guess — surface the failure so the user can retry rather than risk
-    // overwriting an existing pledge from a blank form.
-    console.error('Error loading existing pledge:', error);
+    // adding a duplicate from a form shown over a failed load.
+    console.error('Error loading pledges:', error);
     showLookupError();
   }
 }
@@ -463,24 +611,45 @@ async function refreshDynamicI18n() {
   renderAuthStatus('pledgeAuth');
   await loadConfig(); // CONFIG.* now in the new currency
 
-  if (!$('pledgeFlowSection').classList.contains('hidden')) {
-    await loadStats();
-    renderTopbar();
-    renderSupporters();
-    $('simGoalAmount').textContent = formatCurrency(CONFIG.FUNDRAISING_GOAL);
-    setFormModeText();
-    // The last result was computed in the old currency, and the amount input is now
-    // read as the new currency — clear it so the user recalculates intentionally.
-    renderSimPlaceholder();
-    // In edit mode the form is pre-filled from the saved pledge; re-fetch it in the new
-    // currency and re-fill so the amount isn't left showing the old currency (D22).
-    if (isEditMode) {
-      const { response, data } = await lookupPledgeByEmail(pledgeEmail);
-      if (response.ok && data) {
-        existingPledge = data;
-        fillPledgeForm(existingPledge);
-      }
+  if ($('pledgeFlowSection').classList.contains('hidden')) {
+    return;
+  }
+
+  await loadStats();
+  renderTopbar();
+  renderSupporters();
+  $('simGoalAmount').textContent = formatCurrency(CONFIG.FUNDRAISING_GOAL);
+  // The last sim result was computed in the old currency and the amount input is now
+  // read as the new currency — clear it so the user recalculates intentionally.
+  renderSimPlaceholder();
+
+  // Re-fetch the pledges in the new currency (amounts are converted server-side, D22).
+  const formOpen = !$('pledgeFormWrap').classList.contains('hidden');
+  try {
+    await loadPledges();
+  } catch (error) {
+    console.error('Error refreshing pledges:', error);
+    return;
+  }
+
+  if (formOpen && editingId) {
+    // An edit form is open: re-fill it from the refreshed pledge so its amount shows
+    // the new currency (fall back to the list if that pledge just disappeared).
+    const pledge = pledges.find((p) => p.pledge_id === editingId);
+    if (pledge) {
+      setFormModeText();
+      fillPledgeForm(pledge);
+    } else {
+      renderZone3();
     }
+  } else if (formOpen) {
+    // A create form is open. Relabel its heading, and clear the amount: it was typed in
+    // the old currency and would now be read as the new one on save (same reason the
+    // simulator amount is cleared above). Message/months are currency-independent.
+    setFormModeText();
+    $('amount').value = '';
+  } else {
+    renderZone3();
   }
 }
 
