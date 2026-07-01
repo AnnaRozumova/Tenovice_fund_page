@@ -42,6 +42,27 @@ forgotten/typo'd stage now fails fast instead of quietly deploying disposable po
 
 ---
 
+## 2026-07-01 — Admin config labels say CZK, not EUR (money-correctness fix)
+
+**Why:** A full-app review found `web/admin.html` labels every field **"(EUR)"** ("Current balance (EUR)",
+"Fundraising goal (EUR)", "Breakdown … (EUR)"), but `admin.js` sends the raw numbers with **no `?currency=`**,
+so `POST /config` stores them as **canonical CZK** (the documented behavior — the admin edits koruna, D22).
+An admin typing the goal as `2700000` believing it is euros would write 2,700,000 **Kč** (~€111k) — the whole
+public site would then show a goal ~24× too small and every progress % wrong. The storage was correct; the
+**labels lied** about the unit.
+
+**What:** `web/admin.html` — the four "(EUR)" labels + the intro note now read **"(CZK)"** and the note spells
+out that the numbers are canonical koruna stored in the DB (D22). No JS/behavior change (`admin.js` already
+edits canonical CZK, correctly).
+
+**Result:** the admin tool's labels match what it actually stores, so seeding the real balance/goal before
+go-live can't be silently off by the exchange rate.
+
+**Verified:** no `EUR` string remains in `admin.html`; `admin.js` unchanged (still no `?currency=`, still
+canonical CZK end-to-end). Public pages unaffected (they follow page language for display, D22).
+
+---
+
 ## 2026-07-01 — Per-stage frontend config generated at deploy (D24)
 
 **Why:** Ondra deployed the site to prod (one-tenovice.cz) but it kept calling **our dev** API + Cognito pool,
