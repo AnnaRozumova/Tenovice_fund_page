@@ -14,6 +14,13 @@ can never drift apart. Kept framework-free in the domain layer.
 from datetime import datetime, timezone
 from decimal import Decimal
 
+# Safety backstop on the inclusive month count. The validation layer already caps
+# ``end_year`` (MAX_END_YEAR), so a legitimate monthly pledge never approaches this — it
+# only bounds the ``amount * months`` multiply if a huge month-count ever reaches here
+# another way (e.g. this helper called without going through validation). 600 months
+# (50 years) is far beyond any real campaign horizon (security review 2026-07-02).
+MAX_REMAINING_MONTHS = 600
+
 
 def calculate_remaining_months(
     end_month: int, end_year: int, reference: datetime | None = None
@@ -22,7 +29,10 @@ def calculate_remaining_months(
 
     "Until this month" == 1. Floored at 0 so a past end date yields no impact (the
     calculator's zero-months case); the pledge save path rejects past dates in
-    validation, so it never reaches the floor.
+    validation, so it never reaches the floor. Also capped at ``MAX_REMAINING_MONTHS`` as
+    a safety backstop — the validation layer bounds ``end_year`` (MAX_END_YEAR) so this
+    never bites a real pledge; it just keeps the downstream ``amount * months`` multiply
+    bounded if a huge count ever reaches here another way.
 
     ``reference`` defaults to *now* — the correct anchor when a pledge is first created
     or previewed. When **editing** an existing pledge, pass the pledge's ``created_at``
@@ -34,7 +44,7 @@ def calculate_remaining_months(
     """
     ref = reference or datetime.now(timezone.utc)
     months = (end_year - ref.year) * 12 + (end_month - ref.month) + 1
-    return max(0, months)
+    return max(0, min(months, MAX_REMAINING_MONTHS))
 
 
 def calculate_pledge_values(

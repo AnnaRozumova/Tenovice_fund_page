@@ -13,7 +13,10 @@ import pytest
 
 from domain.validation import (
     MAX_AMOUNT,
+    MAX_CALCULATE_AMOUNT,
+    MAX_END_YEAR,
     MAX_MESSAGE_LENGTH,
+    MAX_PEOPLE,
     validate_calculate_input,
     validate_config_input,
     validate_pledge_input,
@@ -301,6 +304,28 @@ class TestValidatePledgeInput:
         with pytest.raises(ValueError, match="finite"):
             validate_pledge_input(self._base(amount=float("inf")))
 
+    # --- security review 2026-07-02: end_year upper bound (STATS-poisoning guard) ---
+
+    def test_monthly_end_year_at_cap_accepted(self):
+        result = validate_pledge_input(
+            self._base(is_monthly=True, end_month=12, end_year=MAX_END_YEAR)
+        )
+        assert result["end_year"] == MAX_END_YEAR
+
+    def test_monthly_end_year_over_cap_rejected(self):
+        with pytest.raises(ValueError, match="end_year"):
+            validate_pledge_input(
+                self._base(is_monthly=True, end_month=12, end_year=MAX_END_YEAR + 1)
+            )
+
+    def test_monthly_huge_end_year_rejected(self):
+        """The STATS-poisoning vector: a gigantic end_year must be a clean ValueError,
+        not a huge campaign_total ADDed into STATS.pledged_total."""
+        with pytest.raises(ValueError, match="end_year"):
+            validate_pledge_input(
+                self._base(is_monthly=True, end_month=12, end_year=10**30)
+            )
+
 
 class TestValidateCalculateInput:
     """H1 guards on the read-only simulator input.
@@ -325,3 +350,26 @@ class TestValidateCalculateInput:
     def test_people_must_be_whole_number(self):
         with pytest.raises(ValueError, match="whole number"):
             validate_calculate_input(self._base(people=2.5))
+
+    # --- security review 2026-07-02: multiplicative-DoS caps ---
+
+    def test_people_at_cap_accepted(self):
+        assert validate_calculate_input(self._base(people=MAX_PEOPLE))["people"] == MAX_PEOPLE
+
+    def test_people_over_cap_rejected(self):
+        with pytest.raises(ValueError, match="people"):
+            validate_calculate_input(self._base(people=MAX_PEOPLE + 1))
+
+    def test_amount_at_cap_accepted(self):
+        result = validate_calculate_input(self._base(amount=int(MAX_CALCULATE_AMOUNT)))
+        assert result["amount"] == MAX_CALCULATE_AMOUNT
+
+    def test_amount_over_cap_rejected(self):
+        with pytest.raises(ValueError, match="exceed"):
+            validate_calculate_input(self._base(amount=int(MAX_CALCULATE_AMOUNT) + 1))
+
+    def test_end_year_over_cap_rejected(self):
+        with pytest.raises(ValueError, match="end_year"):
+            validate_calculate_input(
+                self._base(is_monthly=True, end_month=12, end_year=MAX_END_YEAR + 1)
+            )

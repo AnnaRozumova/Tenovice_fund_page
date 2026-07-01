@@ -13,6 +13,21 @@ EMAIL_RE = re.compile(r"^[^@\s]+@[^@\s]+\.[^@\s]+$")
 MAX_AMOUNT = Decimal("2500000")
 MAX_MESSAGE_LENGTH = 500
 
+# Upper bound on a monthly pledge's end year (security review 2026-07-02). Without it
+# ``end_year`` is unbounded above: a monthly pledge with a huge year makes
+# ``remaining_months`` — and thus ``campaign_total``, which is ADDed into the public
+# ``STATS.pledged_total`` — astronomically large, poisoning the "raised" headline every
+# visitor sees; on the simulator it also turns the month-count into unbounded big-integer
+# work on the shared Lambda. 2035 gives generous headroom over the 2026–2030 campaign.
+MAX_END_YEAR = 2035
+
+# Caps for the read-only calculator (``POST /calculate``). It stores nothing, so these
+# don't guard STATS — they bound ``total_impact = people * amount * months`` so a crafted
+# request can't force huge-number arithmetic on the shared Lambda. ``people`` up to 7000
+# covers any realistic what-if group; the per-person amount reuses the save-path cap.
+MAX_PEOPLE = 7000
+MAX_CALCULATE_AMOUNT = MAX_AMOUNT
+
 # The campaign breakdown directions, by stable identifier key. The CONFIG row
 # (read by get_config, written by update_config) stores these keys + amounts;
 # the localized CZ/EN labels live in the frontend i18n dictionary, not the DB.
@@ -81,7 +96,7 @@ def _require_non_negative_int(data: dict, field: str) -> int:
     return int_value
 
 
-def _require_positive_int(data: dict, field: str) -> int:
+def _require_positive_int(data: dict, field: str, maximum: int | None = None) -> int:
     value = data.get(field)
 
     if value is None:
@@ -102,6 +117,9 @@ def _require_positive_int(data: dict, field: str) -> int:
 
     if int_value < 1:
         raise ValueError(f"'{field}' must be greater than 0")
+
+    if maximum is not None and int_value > maximum:
+        raise ValueError(f"'{field}' must not exceed {maximum:,}")
 
     return int_value
 
@@ -142,6 +160,11 @@ def _validate_end_date(data: dict, *, reject_past: bool) -> tuple[int, int]:
 
     if end_month < 1 or end_month > 12:
         raise ValueError("'end_month' must be between 1 and 12")
+
+    # Upper-bound the year on BOTH paths (save + calculate). This is what stops a crafted
+    # ``end_year`` from poisoning STATS / exploding the month-count (see MAX_END_YEAR).
+    if end_year > MAX_END_YEAR:
+        raise ValueError(f"'end_year' must not be later than {MAX_END_YEAR}")
 
     if reject_past:
         now = datetime.now(timezone.utc)
@@ -195,15 +218,19 @@ def validate_pledge_input(data: dict) -> dict:
 def validate_calculate_input(data: dict) -> dict:
     """Validate calculator/simulator input for the read-only ``POST /calculate``.
 
-    Differs from a saved pledge: it carries ``people`` (a what-if group size, no
-    upper cap — D15) and ``amount`` is the per-person amount; there is no email or
-    message. A monthly end date in the past is **not** rejected — the simulation
-    floors remaining months at 0 (the zero-months case). ``amount`` is uncapped
-    here: the calculator stores nothing, so MAX_AMOUNT (which guards STATS) doesn't
-    apply, and a large group what-if must stay expressible.
+    Differs from a saved pledge: it carries ``people`` (a what-if group size) and
+    ``amount`` is the per-person amount; there is no email or message. A monthly end date
+    in the past is **not** rejected — the simulation floors remaining months at 0 (the
+    zero-months case).
+
+    ``people`` and ``amount`` are bounded (MAX_PEOPLE / MAX_CALCULATE_AMOUNT) even though
+    the simulator stores nothing: the result ``people * amount * months`` must stay a
+    finite, sanely-sized number so a crafted request can't force huge-integer arithmetic
+    on the shared Lambda (security review 2026-07-02). ``end_year`` is bounded in
+    ``_validate_end_date`` (MAX_END_YEAR), same as the save path.
     """
-    people = _require_positive_int(data, "people")
-    amount = _require_positive_decimal(data, "amount")
+    people = _require_positive_int(data, "people", maximum=MAX_PEOPLE)
+    amount = _require_positive_decimal(data, "amount", maximum=MAX_CALCULATE_AMOUNT)
     is_monthly = _require_bool(data, "is_monthly")
 
     validated = {

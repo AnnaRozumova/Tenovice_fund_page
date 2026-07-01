@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 
 from domain.pledge_math import (
+    MAX_REMAINING_MONTHS,
     calculate_pledge_values,
     calculate_remaining_months,
 )
@@ -62,6 +63,24 @@ def test_reference_anchors_month_count_at_a_fixed_point():
         reference=jan_2026,
     )
     assert campaign_total == Decimal("1200")
+    assert monthly_value == Decimal("100")
+
+
+def test_remaining_months_clamped_to_max():
+    """Security backstop (2026-07-02): an out-of-range future year can't produce an
+    unbounded month count. Validation caps end_year, but the math clamps independently so
+    the downstream ``amount * months`` multiply is always bounded."""
+    # A year far beyond MAX_END_YEAR would otherwise yield a gigantic month count.
+    assert calculate_remaining_months(12, 999999) == MAX_REMAINING_MONTHS
+
+
+def test_campaign_total_bounded_by_month_clamp():
+    """The clamp bounds campaign_total even for an absurd end_year (defense in depth:
+    normally end_year is rejected by validation before it ever reaches the math)."""
+    campaign_total, monthly_value = calculate_pledge_values(
+        Decimal("100"), is_monthly=True, end_month=12, end_year=999999
+    )
+    assert campaign_total == Decimal("100") * MAX_REMAINING_MONTHS
     assert monthly_value == Decimal("100")
 
 
