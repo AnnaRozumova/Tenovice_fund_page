@@ -52,7 +52,7 @@ AWS CDK (Python) describes & deploys all of the above.
 - `constructs/lambdas.py` — **the single API Lambda** (Python 3.14, handler `app.handler`); the asset is
   Docker-bundled (`pip install -r requirements.txt -t /asset-output && cp -r src/. /asset-output`) so
   FastAPI + Mangum ship with the code. Read-write on the table.
-- `constructs/apigw.py` — HTTP API + CORS (`GET`/`POST`/`OPTIONS`, origins `*`) + the `ANY /{proxy+}`
+- `constructs/apigw.py` — HTTP API + CORS (`GET`/`POST`/`PUT`/`DELETE`/`OPTIONS`, origins `*`; PUT+DELETE added for edit/delete a pledge, Phase M) + the `ANY /{proxy+}`
   route → the API Lambda (FastAPI does the per-endpoint routing). **AUTH3:** a Cognito **JWT authorizer**
   (`HttpUserPoolAuthorizer` over the AUTH1 pool + web client) is attached to the proxy route, so every
   request needs a valid token, with three unauthenticated carve-out routes that win by route specificity —
@@ -68,17 +68,20 @@ AWS CDK (Python) describes & deploys all of the above.
   The pool + web client back the **AUTH3** JWT authorizer in `apigw.py` (the API now requires a token).
   Prod pool is retained + deletion-protected; dev is disposable. Outputs `UserPoolId` / `UserPoolClientId`.
 
-## API — 7 routes (one FastAPI app behind `ANY /{proxy+}`)
+## API — 9 routes (one FastAPI app behind `ANY /{proxy+}`)
 
-Every route is a FastAPI path in `services/pledges_api/src/api/`; the contracts are unchanged from the old
-per-endpoint Lambdas.
+Every route is a FastAPI path in `services/pledges_api/src/api/`. The pledge contracts changed in Phase M
+(D23 — multiple pledges per account: no upsert, new `PUT`/`DELETE /pledges/{id}`, `by-email` returns a list);
+the rest are unchanged from the old per-endpoint Lambdas.
 
 | Method | Path | Route (`services/pledges_api/src/api/`) | Notes |
 |--------|------|------------------------------------------|-------|
 | GET | `/stats` | `stats.py` | reads the `STATS` row (running totals) |
 | GET | `/pledges` | `pledges.py:list_pledges` | `scan`; returns anonymous fields only |
-| POST | `/pledges` | `pledges.py:create_or_update_pledge` | upsert keyed by the caller's identity; adjusts `STATS`. **AUTH3:** behind the authorizer the email is the verified JWT `email` claim — the body email is ignored (no impersonation) |
-| GET | `/pledges/by-email` | `pledges.py:get_pledge_by_email` | query `EmailIndex` (case-insensitive); returns **only the caller's own pledge, projected to an allowlist** (no `pledgeID`/timestamps; the email isn't echoed back either — H1). **AUTH3:** behind the authorizer the identity is the verified JWT `email` claim; `?email=` is ignored (effectively "my pledge"). Both handlers **fail closed** (401) on an authenticated request whose token has no `email` claim (e.g. an access token); the client-supplied email is honoured only when the app runs without the authorizer (local dev / tests) |
+| POST | `/pledges` | `pledges.py:create_pledge` | **always creates** a new pledge for the caller (no upsert since Phase M/D23); adjusts `STATS`. **AUTH3:** behind the authorizer the email is the verified JWT `email` claim — the body email is ignored (no impersonation) |
+| PUT | `/pledges/{id}` | `pledges.py:update_pledge` | edit one of the caller's **own** pledges by id; **owner-checked** (the item's `email` must equal the caller's identity, else 403); adjusts the `STATS` delta |
+| DELETE | `/pledges/{id}` | `pledges.py:delete_pledge` | delete one of the caller's **own** pledges by id; **owner-checked** (403 otherwise); subtracts its impact from `STATS`, and **−1 supporter only if it was the account's last pledge** |
+| GET | `/pledges/by-email` | `pledges.py:get_my_pledges` | query `EmailIndex` (case-insensitive); returns the caller's **own pledges as a list**, each projected to an allowlist **plus its `pledge_id`** (no timestamps beyond `created_at`; the email isn't echoed back — H1); empty list (200) when none. **AUTH3:** behind the authorizer the identity is the verified JWT `email` claim; `?email=` is ignored (effectively "my pledges"). All pledge handlers **fail closed** (401) on an authenticated request whose token has no `email` claim (e.g. an access token); the client-supplied email is honoured only when the app runs without the authorizer (local dev / tests) |
 | GET | `/config` | `config.py:get_config` | reads the `CONFIG` row (editable balance / goal / breakdown); documented defaults if the row is absent (C1) |
 | POST | `/config` | `config.py:update_config` | **admin-only** write of the `CONFIG` row; shared-secret bearer token, constant-time compare, fails closed (C2) |
 | POST | `/calculate` | `calculate.py` | **read-only** what-if simulator (D2a); computes impact + projection vs goal from the shared pledge math; reads `STATS`/`CONFIG`, writes nothing. **AUTH3:** gated (login required) like the rest of the calculator |
@@ -93,10 +96,18 @@ previous stack.) **Dev site:**
 app; an HTTP middleware in `app.py` answers it with `204` (API Gateway adds the actual CORS headers). Without
 it FastAPI would 405 the preflight and the browser would block every `POST`.
 
-### Email-based upsert
-Email is the identity key. The first `POST /pledges` with an email creates a pledge; a later POST with the
-same email updates it (the delta is applied to `STATS`). No tokens / auth — knowing the email is the only
-ownership proof.
+### Multiple pledges per account (Phase M, D23)
+An account (email) may hold **several** pledges, created / edited / deleted independently over the multi-year
+campaign — there is **no upsert**. `POST /pledges` always creates; `PUT`/`DELETE /pledges/{id}` edit/delete a
+specific pledge, **owner-checked** (the target item's `email` must equal the caller's identity, else 403).
+Identity is the verified JWT `email` claim behind the AUTH3 authorizer (the client-supplied email is trusted
+only when running without it, locally/tests). `STATS.contributors_count` counts **distinct emails** (+1 on an
+account's first pledge, −1 on deleting its last, +0 on further pledges and on edits). Editing a monthly pledge
+recomputes its `campaign_total` on the pledge's **original `created_at` baseline** (not "now"), so an unchanged
+pledge stays at the same total and elapsed months don't leak a bogus delta into `STATS` (see `pledge_math.py`
+`calculate_remaining_months`'s `reference`). **Known limitation:** the `STATS` adjustment is still not
+transactional (pre-existing H1/P2) — two truly concurrent create/delete on the *same* email could miscount the
+supporter by ±1; negligible for one user managing their own pledges at this scale.
 
 ## Data model (DynamoDB, one table)
 
@@ -113,13 +124,15 @@ Primary key `pledgeID` (String). GSI `EmailIndex` on `email` (projection ALL) fo
 - `message?` — optional free text
 - `end_month?`, `end_year?` — present only for monthly pledges
 
-> A pledge represents **one person** (B4). Legacy (pre-B4) rows may still carry a `contributors_count`
-> attribute — it is ignored by the model and never re-written; no destructive migration is performed.
+> A pledge represents **one person** (B4); since Phase M (D23) that one person (email) may hold **several**
+> pledges. Legacy (pre-B4) rows may still carry a `contributors_count` attribute — it is ignored by the model
+> and never re-written; no destructive migration is performed.
 
 **`STATS` row** (`pledgeID="STATS"`) — running totals:
 - `pledged_total` — sum of `campaign_total`
-- `contributors_count` — the supporters total; **a count of pledges** (1 per supporter since B4), `+1` on
-  each new pledge, `+0` on edit. (Name kept for the frontend; it no longer sums per-pledge group sizes.)
+- `contributors_count` — the supporters total; **a count of distinct emails** (since D23), `+1` on an
+  account's first pledge, `−1` on deleting its last, `+0` on further pledges and on edits. (Name kept for the
+  frontend; an account with several pledges still counts once.)
 - `monthly_total` — sum of monthly `amount`
 - `updated_at`
 
@@ -132,7 +145,8 @@ Primary key `pledgeID` (String). GSI `EmailIndex` on `email` (projection ALL) fo
 
 > **`contributors_count`** (on the `STATS` row) is the single canonical field for the supporters total,
 > used end-to-end (DynamoDB `STATS` → `GET /stats` → `web/main.js`). The old frontend `pledgers_count`
-> reads were removed in B2; since B4 the value is a **pledge count** (1 per supporter), not a sum of group sizes.
+> reads were removed in B2; since D23 the value is a **count of distinct emails** (an account with several
+> pledges counts once), not a pledge-row count.
 
 ## Pledge math (single source of truth — `domain/pledge_math.py`)
 

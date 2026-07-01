@@ -1,11 +1,21 @@
-"""Pledge endpoints: list, upsert by email, and look up your own pledge.
+"""Pledge endpoints: list, create, edit/delete your own, and read your own pledges.
 
-- ``GET /pledges`` — anonymous public list (no identity fields).
-- ``POST /pledges`` — create or update a pledge keyed by email; a returning pledger
-  edits their own record. B4: one pledge = one supporter (the ``STATS`` tally, still
-  stored under ``contributors_count``, is +1 on create / +0 on edit).
-- ``GET /pledges/by-email`` — the caller's own pledge, projected to an explicit
-  allowlist (never the raw item; the email is not echoed back — B1/H1).
+Since Phase M one account (email) may hold **several** pledges (D23), added, edited,
+and deleted independently over the multi-year campaign — the old "one pledge per
+email" upsert is gone. Storage is unchanged: each pledge is its own DynamoDB item
+(``pledgeID`` PK), grouped by the non-unique ``email`` attribute via the ``EmailIndex``
+GSI (variant B).
+
+- ``GET /pledges`` — anonymous public list (no identity fields), every pledge row.
+- ``POST /pledges`` — **always create** a new pledge for the caller. The supporter
+  tally (``STATS.contributors_count``) counts **distinct emails**: +1 only on an
+  account's *first* pledge, +0 for further ones.
+- ``PUT /pledges/{id}`` — edit one of the caller's own pledges (owner-checked).
+- ``DELETE /pledges/{id}`` — delete one of the caller's own pledges (owner-checked);
+  −1 supporter only when it was the account's *last* pledge.
+- ``GET /pledges/by-email`` — the caller's **own pledges** as a list, each projected to
+  an explicit allowlist plus its ``pledge_id`` (so the owner can address edit/delete).
+  The email is never echoed; ``pledge_id`` stays off the public list (B1/H1).
 """
 import json
 import uuid
@@ -16,7 +26,7 @@ from boto3.dynamodb.conditions import Key
 from botocore.exceptions import ClientError
 from fastapi import APIRouter, Request
 
-from api.config import localize, read_exchange_rate
+from api.config import read_exchange_rate
 from db import get_table
 from domain.currency import CANONICAL_CURRENCY, convert_fields, normalize_amount, parse_currency
 from domain.models import Pledge
@@ -26,18 +36,23 @@ from utils.http import json_response
 
 router = APIRouter()
 
+# Rows that are not pledges. They carry no ``email`` attribute, so they never appear in
+# the EmailIndex — but the by-email/list paths filter defensively anyway.
+_SENTINEL_IDS = ("STATS", "CONFIG")
 
-# Fields the caller may see about their own pledge. The raw DynamoDB item is never
-# returned wholesale — we project an explicit allowlist so internal bookkeeping
-# fields can't leak. The email is intentionally NOT echoed: the caller supplied it
-# in the lookup query, so returning it discloses nothing and keeps it minimal (H1).
-PLEDGE_FIELDS = (
+# Fields the owner may see about each of their own pledges. The raw DynamoDB item is
+# never returned wholesale — we project an explicit allowlist. ``pledge_id`` is added
+# separately (the owner needs it to edit/delete a specific pledge); it is the owner's
+# own data, so unlike the public list this is fine to expose here. The email is NOT
+# echoed: the caller is the owner, so returning it discloses nothing (H1).
+MY_PLEDGE_FIELDS = (
     "amount",
     "is_monthly",
     "campaign_total",
     "message",
     "end_month",
     "end_year",
+    "created_at",
 )
 
 
@@ -79,6 +94,35 @@ def _claim_email(claims: dict) -> str | None:
     return email.strip().lower() if email else None
 
 
+def _resolve_identity(request: Request, client_email: str | None) -> tuple[str | None, bool]:
+    """Resolve the caller's identity email, returning ``(email, authenticated)``.
+
+    Behind the gateway authorizer (``authenticated=True``) the identity is the verified
+    ``email`` claim and any client-supplied email is ignored — that is what stops one
+    user from acting on someone else's pledge. An authenticated request whose token has
+    no ``email`` claim yields ``(None, True)`` so the handler fails closed. With no
+    authorizer (local dev / tests) the client-supplied email is used (``authenticated``
+    is ``False``), lowercased.
+    """
+    claims = _jwt_claims(request)
+    if claims is not None:
+        return _claim_email(claims), True
+    return (client_email.strip().lower() if client_email else None), False
+
+
+def _parse_reference(created_at: str | None) -> datetime | None:
+    """Parse a stored ISO ``created_at`` into a datetime for anchoring an edit's
+    recompute (see ``_update_existing_pledge``). Returns ``None`` — falling back to
+    *now* — if it is missing or unparseable, which is safe (worst case: the old
+    behaviour) and never raises."""
+    if not created_at:
+        return None
+    try:
+        return datetime.fromisoformat(created_at)
+    except ValueError:
+        return None
+
+
 @router.get("/pledges")
 def list_pledges(currency: str | None = None):
     currency = parse_currency(currency)
@@ -98,7 +142,7 @@ def list_pledges(currency: str | None = None):
                 "message": item.get("message"),
             }
             for item in items
-            if item.get("pledgeID") not in ("STATS", "CONFIG")
+            if item.get("pledgeID") not in _SENTINEL_IDS
         ]
         pledges.sort(key=lambda pledge: pledge.get("created_at") or "", reverse=True)
         if currency != CANONICAL_CURRENCY:
@@ -111,22 +155,20 @@ def list_pledges(currency: str | None = None):
 
 
 @router.get("/pledges/by-email")
-def get_pledge_by_email(
+def get_my_pledges(
     request: Request, email: str | None = None, currency: str | None = None
 ):
+    """Return the caller's own pledges as a list (empty list if they have none).
+
+    AUTH3: behind the authorizer the identity is the verified email claim and the
+    client-supplied ``?email=`` is ignored — so the query param can't be used to read
+    someone else's pledges. An authenticated request with no email claim (e.g. an access
+    token) is rejected. The ``?email=`` path is reached only with no authorizer.
+    """
     currency = parse_currency(currency)
-    # AUTH3: behind the gateway authorizer the identity is the verified email claim and
-    # the client-supplied ?email= is ignored — so the query param can't be used to read
-    # someone else's pledge (effectively a "my pledge" lookup). An authenticated request
-    # with no email claim (e.g. an access token) is rejected, not served from client
-    # input. The ?email= path is reached only with no authorizer (local dev / tests).
-    claims = _jwt_claims(request)
-    if claims is not None:
-        identity = _claim_email(claims)
-        if not identity:
-            return json_response(401, {"error": "Unauthorized"})
-    else:
-        identity = email.strip().lower() if email else None
+    identity, authenticated = _resolve_identity(request, email)
+    if authenticated and not identity:
+        return json_response(401, {"error": "Unauthorized"})
     if not identity:
         return json_response(400, {"message": "email query parameter is required"})
 
@@ -135,37 +177,46 @@ def get_pledge_by_email(
         result = table.query(
             IndexName="EmailIndex",
             KeyConditionExpression=Key("email").eq(identity),
-            Limit=1,
         )
     except ClientError:
-        return json_response(500, {"error": "Failed to look up pledge"})
+        return json_response(500, {"error": "Failed to look up pledges"})
 
-    items = result.get("Items", [])
-    if not items:
-        return json_response(404, {"message": "not found"})
+    items = [i for i in result.get("Items", []) if i.get("pledgeID") not in _SENTINEL_IDS]
 
-    item = items[0]
-    projected = {field: item[field] for field in PLEDGE_FIELDS if field in item}
-    return json_response(200, localize(table, projected, ("amount", "campaign_total"), currency))
+    pledges = []
+    for item in items:
+        projected = {field: item[field] for field in MY_PLEDGE_FIELDS if field in item}
+        projected["pledge_id"] = item["pledgeID"]
+        pledges.append(projected)
+
+    pledges.sort(key=lambda pledge: pledge.get("created_at") or "", reverse=True)
+
+    if currency != CANONICAL_CURRENCY:
+        try:
+            rate = read_exchange_rate(table)
+        except ClientError:
+            return json_response(500, {"error": "Failed to look up pledges"})
+        for pledge in pledges:
+            convert_fields(pledge, ("amount", "campaign_total"), currency, rate)
+
+    return json_response(200, {"pledges": pledges, "currency": currency})
 
 
 @router.post("/pledges")
-async def create_or_update_pledge(request: Request):
+async def create_pledge(request: Request):
     currency = parse_currency(request.query_params.get("currency"))
     try:
         body = json.loads(await request.body() or b"{}")
     except json.JSONDecodeError:
         return json_response(400, {"error": "Invalid JSON in request body"})
 
-    # AUTH3: a pledge is keyed to the *authenticated* user. Behind the gateway authorizer
-    # the email comes from the verified claims and the body's email is ignored — that's
-    # what stops one user from creating or editing a pledge under someone else's email.
-    # An authenticated request with no email claim (e.g. an access token) is rejected
-    # rather than falling back to the attacker-controlled body. With no authorizer (local
-    # dev / tests) the body email is used and validated below.
-    claims = _jwt_claims(request)
-    if claims is not None:
-        identity = _claim_email(claims)
+    # AUTH3: a pledge is keyed to the *authenticated* user. Behind the authorizer the
+    # email comes from the verified claims and the body's email is ignored (no
+    # impersonation). An authenticated request with no email claim (e.g. an access token)
+    # is rejected rather than trusting the body. With no authorizer (local dev / tests)
+    # the body email is used and validated below.
+    identity, authenticated = _resolve_identity(request, body.get("email"))
+    if authenticated:
         if not identity:
             return json_response(401, {"error": "Unauthorized"})
         body["email"] = identity
@@ -187,25 +238,99 @@ async def create_or_update_pledge(request: Request):
         return json_response(400, {"error": str(e)})
 
     try:
-        existing_pledge = _find_pledge_by_email(table, validated["email"])
-        if existing_pledge:
-            return _update_existing_pledge(table, existing_pledge, validated)
         return _create_new_pledge(table, validated)
     except ClientError:
         return json_response(500, {"error": "Failed to process pledge"})
 
 
-def _find_pledge_by_email(table, email: str):
-    # Same query style as get_pledge_by_email above (the typed condition builder).
-    # ``email`` is already normalized (validate_pledge_input lowercases it).
+@router.put("/pledges/{pledge_id}")
+async def update_pledge(pledge_id: str, request: Request):
+    currency = parse_currency(request.query_params.get("currency"))
+    try:
+        body = json.loads(await request.body() or b"{}")
+    except json.JSONDecodeError:
+        return json_response(400, {"error": "Invalid JSON in request body"})
+
+    identity, authenticated = _resolve_identity(request, body.get("email"))
+    if authenticated:
+        if not identity:
+            return json_response(401, {"error": "Unauthorized"})
+        body["email"] = identity
+
+    table = get_table()
+
+    if currency != CANONICAL_CURRENCY:
+        try:
+            rate = read_exchange_rate(table)
+        except ClientError:
+            return json_response(500, {"error": "Failed to process pledge"})
+        normalize_amount(body, currency, rate)
+
+    try:
+        validated = validate_pledge_input(body)
+    except ValueError as e:
+        return json_response(400, {"error": str(e)})
+
+    try:
+        existing_item = _get_pledge_item(table, pledge_id)
+        if existing_item is None:
+            return json_response(404, {"message": "not found"})
+        # Owner check: you may only edit a pledge whose email is your identity. Behind
+        # the authorizer ``validated["email"]`` was forced to the verified claim, so this
+        # rejects editing anyone else's pledge; locally it checks the supplied email.
+        # Compare case-insensitively so a legacy row with a non-lowercased email can't
+        # lock its true owner out (identity is always lowercased).
+        if existing_item["email"].lower() != validated["email"]:
+            return json_response(403, {"error": "Forbidden"})
+
+        existing_pledge = Pledge.from_dynamodb_item(existing_item)
+        return _update_existing_pledge(table, existing_pledge, validated)
+    except ClientError:
+        return json_response(500, {"error": "Failed to process pledge"})
+
+
+@router.delete("/pledges/{pledge_id}")
+def delete_pledge(pledge_id: str, request: Request, email: str | None = None):
+    identity, authenticated = _resolve_identity(request, email)
+    if authenticated and not identity:
+        return json_response(401, {"error": "Unauthorized"})
+    if not identity:
+        return json_response(400, {"message": "email query parameter is required"})
+
+    table = get_table()
+    try:
+        existing_item = _get_pledge_item(table, pledge_id)
+        if existing_item is None:
+            return json_response(404, {"message": "not found"})
+        # Case-insensitive owner check (identity is lowercased; a legacy row may not be).
+        if existing_item["email"].lower() != identity:
+            return json_response(403, {"error": "Forbidden"})
+        return _delete_existing_pledge(table, existing_item)
+    except ClientError:
+        return json_response(500, {"error": "Failed to delete pledge"})
+
+
+def _get_pledge_item(table, pledge_id: str):
+    """Fetch a single pledge item by id, or ``None`` if it is absent or a sentinel
+    row (STATS/CONFIG are addressable by ``pledgeID`` but are not pledges)."""
+    if pledge_id in _SENTINEL_IDS:
+        return None
+    item = table.get_item(Key={"pledgeID": pledge_id}).get("Item")
+    if not item or "email" not in item:
+        return None
+    return item
+
+
+def _count_email_pledges(table, email: str) -> int:
+    """How many pledge rows this email currently has. Used to decide the supporter
+    tally: an email's *first* create is +1 and its *last* delete is −1 (distinct-email
+    count, D23). Sentinel rows carry no ``email`` so they aren't in EmailIndex, but we
+    filter defensively."""
     result = table.query(
         IndexName="EmailIndex",
         KeyConditionExpression=Key("email").eq(email),
     )
-    items = [item for item in result.get("Items", []) if item.get("pledgeID") != "STATS"]
-    if items:
-        return Pledge.from_dynamodb_item(items[0])
-    return None
+    return len([i for i in result.get("Items", []) if i.get("pledgeID") not in _SENTINEL_IDS])
 
 
 def _create_new_pledge(table, data: dict):
@@ -224,6 +349,10 @@ def _create_new_pledge(table, data: dict):
         end_year=end_year,
     )
 
+    # Supporters = distinct emails (D23): bump the tally only when this account had no
+    # pledge yet. Count BEFORE writing the new row.
+    is_first_for_email = _count_email_pledges(table, data["email"]) == 0
+
     pledge = Pledge(
         pledge_id=pledge_id,
         email=data["email"],
@@ -239,11 +368,10 @@ def _create_new_pledge(table, data: dict):
 
     table.put_item(Item=pledge.to_dynamodb_item())
 
-    # A new pledge is one new supporter (B4: 1 pledge = 1 supporter).
     _adjust_stats(
         table,
         pledged_total_delta=campaign_total,
-        supporters_delta=1,
+        supporters_delta=1 if is_first_for_email else 0,
         monthly_total_delta=monthly_value,
     )
 
@@ -269,16 +397,22 @@ def _update_existing_pledge(table, existing_pledge: Pledge, data: dict):
         existing_pledge.amount if existing_pledge.is_monthly else Decimal("0")
     )
 
+    # Recompute the new campaign_total on the pledge's ORIGINAL create-time baseline, not
+    # "now": a monthly campaign_total is frozen at create, so anchoring the edit to
+    # created_at keeps an unchanged pledge at the same total (delta 0) and reflects only
+    # what the user actually changed — recomputing against now would corrupt STATS as
+    # months elapse (see calculate_remaining_months).
     new_campaign_total, new_monthly_value = calculate_pledge_values(
         amount=new_amount,
         is_monthly=new_is_monthly,
         end_month=new_end_month,
         end_year=new_end_year,
+        reference=_parse_reference(existing_pledge.created_at),
     )
 
     pledged_total_delta = new_campaign_total - old_campaign_total
     monthly_total_delta = new_monthly_value - old_monthly_value
-    # Editing a pledge is still the same one supporter — no change to the count.
+    # Editing a pledge doesn't change the supporter count — same account, same person.
 
     set_parts = [
         "email = :email",
@@ -337,15 +471,44 @@ def _update_existing_pledge(table, existing_pledge: Pledge, data: dict):
     )
 
 
+def _delete_existing_pledge(table, item: dict):
+    email = item["email"]
+    campaign_total: Decimal = item.get("campaign_total", Decimal("0"))
+    monthly_value: Decimal = (
+        item.get("amount", Decimal("0")) if item.get("is_monthly") else Decimal("0")
+    )
+
+    # −1 supporter only if this was the account's last pledge (distinct-email count,
+    # D23). Count BEFORE deleting: 1 means the row we're about to remove is the last one.
+    is_last_for_email = _count_email_pledges(table, email) <= 1
+
+    table.delete_item(Key={"pledgeID": item["pledgeID"]})
+
+    _adjust_stats(
+        table,
+        pledged_total_delta=-campaign_total,
+        supporters_delta=-1 if is_last_for_email else 0,
+        monthly_total_delta=-monthly_value,
+    )
+
+    return json_response(
+        200,
+        {
+            "pledge_id": item["pledgeID"],
+            "message": "Pledge deleted successfully",
+        },
+    )
+
+
 def _adjust_stats(
     table,
     pledged_total_delta: Decimal,
     supporters_delta: int,
     monthly_total_delta: Decimal,
 ):
-    # The STATS supporter tally is still stored under ``contributors_count`` (the
-    # field the frontend reads); since B4 it counts pledges (1 per supporter), not
-    # a per-pledge group size — +1 on create, +0 on edit.
+    # The STATS supporter tally is stored under ``contributors_count`` (the field the
+    # frontend reads). Since D23 it counts **distinct emails**: +1 on an account's first
+    # pledge, −1 on deleting its last, +0 on further pledges and on edits.
     update_expression = "ADD pledged_total :pledged_total_delta, contributors_count :supporters_delta"
     expression_values = {
         ":pledged_total_delta": pledged_total_delta,

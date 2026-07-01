@@ -178,7 +178,7 @@ class TestProxyEvent:
             None,
         )
         assert resp["statusCode"] == 200
-        assert json.loads(resp["body"])["amount"] == 250
+        assert json.loads(resp["body"])["pledges"][0]["amount"] == 250
 
     def test_create_pledge_rejects_authenticated_request_without_email_claim(self, seeded):
         # An authenticated request whose token carries no `email` claim (e.g. an access

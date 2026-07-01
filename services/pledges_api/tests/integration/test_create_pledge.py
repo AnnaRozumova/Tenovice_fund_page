@@ -125,24 +125,25 @@ class TestCreatePledge:
         stats = table.get_item(Key={"pledgeID": "STATS"})["Item"]
         assert int(stats["monthly_total"]) == 25
 
-    def test_second_post_same_email_updates_not_duplicates(self, client_and_table):
-        """A returning pledger (same email) edits their pledge — no new record."""
+    def test_second_post_same_email_creates_second_pledge(self, client_and_table):
+        """Since Phase M (D23) a second POST with the same email creates a SECOND
+        pledge (no upsert). Both rows exist; the supporter tally counts the email once."""
         client, table = client_and_table
 
         first = {"email": "returning@example.com", "amount": 100, "is_monthly": False}
         assert client.post("/pledges", json=first).status_code == 201
 
-        second = {**first, "amount": 250}
-        assert client.post("/pledges", json=second).status_code == 200
+        second = {"email": "returning@example.com", "amount": 250, "is_monthly": False}
+        assert client.post("/pledges", json=second).status_code == 201
 
-        # Only one non-STATS row exists, and the amount reflects the edit.
+        # Two distinct pledge rows now exist for the one email.
         rows = [i for i in table.scan()["Items"] if i["pledgeID"] != "STATS"]
-        assert len(rows) == 1
-        assert int(rows[0]["amount"]) == 250
+        assert len(rows) == 2
+        assert sorted(int(r["amount"]) for r in rows) == [100, 250]
 
-        # STATS reflects the new amount, not the sum of both.
+        # STATS sums both pledges' impact, but the email is one supporter.
         stats = table.get_item(Key={"pledgeID": "STATS"})["Item"]
-        assert int(stats["pledged_total"]) == 250
+        assert int(stats["pledged_total"]) == 350
         assert int(stats["contributors_count"]) == 1
 
     def test_invalid_json(self, client_and_table):

@@ -60,6 +60,9 @@ class ApiConstruct(Construct):
                 allow_methods=[
                     apigwv2.CorsHttpMethod.GET,
                     apigwv2.CorsHttpMethod.POST,
+                    # PUT + DELETE: edit / delete a single pledge by id (Phase M, D23).
+                    apigwv2.CorsHttpMethod.PUT,
+                    apigwv2.CorsHttpMethod.DELETE,
                     apigwv2.CorsHttpMethod.OPTIONS,
                 ],
                 allow_origins=["*"],

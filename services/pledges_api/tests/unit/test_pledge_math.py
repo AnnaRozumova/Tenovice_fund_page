@@ -46,6 +46,25 @@ def test_monthly_impact_multiplies_amount_by_remaining_months():
     assert monthly_value == Decimal("50")
 
 
+def test_reference_anchors_month_count_at_a_fixed_point():
+    """With an explicit reference the count is inclusive from that month, independent of
+    'now' — this is how an edit recomputes a monthly pledge on its create-time baseline
+    (Phase M/D23) so the frozen campaign_total doesn't drift as months elapse."""
+    jan_2026 = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    # Jan 2026 -> Dec 2026 inclusive = 12 months, regardless of the real current date.
+    assert calculate_remaining_months(12, 2026, reference=jan_2026) == 12
+
+    campaign_total, monthly_value = calculate_pledge_values(
+        Decimal("100"),
+        is_monthly=True,
+        end_month=12,
+        end_year=2026,
+        reference=jan_2026,
+    )
+    assert campaign_total == Decimal("1200")
+    assert monthly_value == Decimal("100")
+
+
 def test_past_end_date_floors_remaining_months_at_zero():
     """The zero-months case: a past end date yields no campaign impact, not a negative.
 

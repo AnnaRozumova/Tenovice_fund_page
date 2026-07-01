@@ -112,7 +112,7 @@ class TestByEmailCurrency:
         client, _ = client_and_table
         body = client.get("/pledges/by-email", params={"email": "owner@example.com"}).json()
         assert body["currency"] == "czk"
-        assert body["amount"] == 2500
+        assert body["pledges"][0]["amount"] == 2500
 
     def test_eur_converts(self, client_and_table):
         client, _ = client_and_table
@@ -120,7 +120,7 @@ class TestByEmailCurrency:
             "/pledges/by-email", params={"email": "owner@example.com", "currency": "eur"}
         ).json()
         assert body["currency"] == "eur"
-        assert body["amount"] == 100  # 2500 / 25
+        assert body["pledges"][0]["amount"] == 100  # 2500 / 25
 
 
 class TestCalculateCurrency:

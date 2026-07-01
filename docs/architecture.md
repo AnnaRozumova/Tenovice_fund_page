@@ -77,14 +77,24 @@ One FastAPI app behind `ANY /{proxy+}`; every route lives in `services/pledges_a
 |--------|------|--------------------|----------------|
 | GET | `/stats` | `stats.py` | read `STATS` row |
 | GET | `/pledges` | `pledges.py:list_pledges` | `scan`, anonymous fields only |
-| POST | `/pledges` | `pledges.py:create_or_update_pledge` | upsert by email + adjust `STATS` |
-| GET | `/pledges/by-email` | `pledges.py:get_pledge_by_email` | query `EmailIndex`; returns only the caller's own pledge, projected to an allowlist (no `pledgeID`/timestamps; email not echoed — B1/H1) |
+| POST | `/pledges` | `pledges.py:create_pledge` | **always create** a new pledge for the caller; adjust `STATS` (Phase M, D23 — no more upsert) |
+| PUT | `/pledges/{id}` | `pledges.py:update_pledge` | edit one of the caller's **own** pledges (owner-checked by identity → 403 otherwise); adjust `STATS` delta |
+| DELETE | `/pledges/{id}` | `pledges.py:delete_pledge` | delete one of the caller's **own** pledges (owner-checked); subtract its impact from `STATS`; −1 supporter only if it was the account's **last** pledge |
+| GET | `/pledges/by-email` | `pledges.py:get_my_pledges` | query `EmailIndex`; returns the caller's **own pledges as a list**, each projected to an allowlist **plus its `pledge_id`** (email not echoed — B1/H1); empty list (200) if none |
 | GET | `/config` | `config.py:get_config` | read `CONFIG` row (editable balance / goal / breakdown); documented defaults if absent |
 | POST | `/config` | `config.py:update_config` | **admin-only** write of `CONFIG`; shared-secret bearer token (constant-time compare, fails closed) |
 | POST | `/calculate` | `calculate.py` | **read-only** what-if simulator (D2a): `{people, amount, is_monthly, end_month?, end_year?}` → impact + projection vs goal; reads `STATS`/`CONFIG`, writes nothing, no auth |
 
-**Email-based upsert:** email is the identity key. First POST creates; a later POST with the same email
-updates, applying the delta to `STATS`. No tokens/auth — knowing the email is the ownership proof.
+**Multiple pledges per account (Phase M, D23):** one email may hold **several** pledges, created / edited /
+deleted independently over the multi-year campaign. Each pledge is its own item (PK `pledgeID`), grouped by
+the non-unique `email` via `EmailIndex` (variant B) — there is **no upsert**. Identity is the caller's email
+(the verified JWT `email` claim behind the AUTH3 authorizer; the client-supplied email only when running
+without it, locally). Edit/delete are **owner-checked**: the target item's `email` must equal the caller's
+identity, else 403. The `STATS.contributors_count` supporter tally counts **distinct emails** — +1 on an
+account's first pledge, −1 on deleting its last, +0 on further pledges and on edits. **Note:** the STATS
+adjustment is still not transactional (the pre-existing non-atomic-STATS limitation, H1/P2) — two truly
+concurrent create/delete on the *same* email could miscount the supporter by ±1; negligible for one user
+managing their own pledges at this scale.
 
 **Live dev API:** `https://wcu3d2uaf2.execute-api.eu-central-1.amazonaws.com` (`eu-central-1`), deployed from
 `main` (stack `FundraisingCalculatorStack`); the table is fresh →
@@ -110,12 +120,13 @@ Single DynamoDB table. PK `pledgeID` (String); GSI `EmailIndex` on `email` (proj
 | `message?` | String | optional |
 | `end_month?`, `end_year?` | Number | present only for monthly pledges |
 
-A pledge represents **one person** (B4). Legacy (pre-B4) rows may still carry a `contributors_count`
-attribute; it is ignored and never re-written (no destructive migration).
+A pledge represents **one person** (B4); since Phase M (D23) that one person (email) may hold **several**
+pledges. Legacy (pre-B4) rows may still carry a `contributors_count` attribute; it is ignored and never
+re-written (no destructive migration).
 
 **`STATS` row** (`pledgeID="STATS"`): `pledged_total` (Σ `campaign_total`), `contributors_count`
-(the supporters total — a **count of pledges**, `+1` per new pledge, `+0` on edit since B4),
-`monthly_total` (Σ monthly `amount`), `updated_at`.
+(the supporters total — a **count of distinct emails** since D23: `+1` on an account's first pledge, `−1` on
+deleting its last, `+0` on further pledges and on edits), `monthly_total` (Σ monthly `amount`), `updated_at`.
 
 **`CONFIG` row** (`pledgeID="CONFIG"`, added C1): the editable campaign numbers — `current_balance`,
 `fundraising_goal`, and `breakdown` (a list of `{key, amount}`, where `key` is a stable identifier such as
@@ -124,8 +135,8 @@ handler falls back to documented defaults when the row is absent, so the site wo
 The row is written by the admin-only `POST /config` (`update_config`, C2; see "Admin secret" below).
 
 > The `STATS` `contributors_count` is the single canonical field for the supporters total, used end-to-end
-> (`STATS` → `GET /stats` → `web/main.js`). The old `pledgers_count` reads were removed in B2; since B4 it
-> is a **pledge count** (1 per supporter), not a sum of per-pledge group sizes.
+> (`STATS` → `GET /stats` → `web/main.js`). The old `pledgers_count` reads were removed in B2; since D23 it
+> is a **count of distinct emails** (an account with several pledges counts once), not a pledge-row count.
 
 ## Pledge math (single source of truth — `domain/pledge_math.py`)
 
