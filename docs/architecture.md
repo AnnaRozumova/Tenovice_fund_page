@@ -98,9 +98,13 @@ managing their own pledges at this scale.
 
 **Live dev API:** `https://wcu3d2uaf2.execute-api.eu-central-1.amazonaws.com` (`eu-central-1`), deployed from
 `main` (stack `FundraisingCalculatorStack`); the table is fresh →
-`GET /stats` → `{"pledged_total": 0, "contributors_count": 0, "monthly_total": 0}`. (The older `tbaulwfk46…`
-API was a previous stack.) Dev site:
+`GET /stats` → `{"pledged_total": 0, "contributors_count": 0, "monthly_total": 0}`. (`tbaulwfk46…` is the
+**PROD** API — Ondra's live site, a separate stack — not this one.) Dev site:
 `http://fundraising-calculator-dev-026268603137-website.s3-website.eu-central-1.amazonaws.com`.
+
+The frontend's `API_URL` + Cognito ids are **per-stage, generated at deploy** (D24): `web/config.js` ships
+dev fallbacks and the S3 deployment adds `config.generated.js` (from the deploying stack's own outputs) that
+overrides them, so a prod deploy self-configures to prod without hand-editing config. See `dev_history.md`.
 
 ## Data model
 

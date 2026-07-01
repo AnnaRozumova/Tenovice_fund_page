@@ -90,9 +90,14 @@ the rest are unchanged from the old per-endpoint Lambdas.
 
 **Live dev API:** `https://wcu3d2uaf2.execute-api.eu-central-1.amazonaws.com` (region `eu-central-1`),
 deployed from `main` (stack `FundraisingCalculatorStack`). The table is **fresh** — `GET /stats` →
-`{"pledged_total": 0, "contributors_count": 0, "monthly_total": 0}`. (The older `tbaulwfk46…` API was a
-previous stack.) **Dev site:**
+`{"pledged_total": 0, "contributors_count": 0, "monthly_total": 0}`. (`tbaulwfk46…` is the **PROD** API —
+Ondra's live site, a separate stack — not this one.) **Dev site:**
 `http://fundraising-calculator-dev-026268603137-website.s3-website.eu-central-1.amazonaws.com`.
+
+**Frontend config is per-stage, generated at deploy (D24).** `web/config.js` holds only **dev fallbacks**;
+the S3 deployment also writes **`config.generated.js`** from the deploying stack's own outputs (API endpoint +
+Cognito ids), loaded right after `config.js` on every page and overriding `API_URL`/`COGNITO`. So each
+`cdk deploy` self-configures — prod→prod, dev→dev; never hand-edit `API_URL`. Absent locally → fallbacks apply.
 
 **CORS:** the browser's preflight `OPTIONS` is forwarded through the single `ANY /{proxy+}` route into the
 app; an HTTP middleware in `app.py` answers it with `204` (API Gateway adds the actual CORS headers). Without

@@ -30,6 +30,16 @@ class FundraisingCalculatorStack(Stack):
             user_pool=cognito.user_pool,
             user_pool_client=cognito.user_pool_client,
         )
-        S3WebsiteConstruct(self, "Website", config=config)
+        # The website gets a per-stage config.generated.js baked from these outputs, so
+        # each deploy self-configures its frontend (no hand-edited API_URL — see D24).
+        S3WebsiteConstruct(
+            self,
+            "Website",
+            config=config,
+            api_url=api.http_api.api_endpoint,
+            cognito_region=self.region,
+            user_pool_id=cognito.user_pool.user_pool_id,
+            user_pool_client_id=cognito.user_pool_client.user_pool_client_id,
+        )
 
         CfnOutput(self, "HttpApiUrl", value=api.http_api.api_endpoint)

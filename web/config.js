@@ -2,15 +2,18 @@
 // Edit these values as needed
 
 const CONFIG = {
-  // API URL — the deployed API Gateway base. Currently the dev stack
-  // (FundraisingCalculatorStack, eu-central-1). Prod gets its own URL at the
-  // domain/HTTPS phase (or a same-origin path behind CloudFront).
+  // API_URL and COGNITO below are only **dev fallbacks**. At deploy time the CDK
+  // writes `config.generated.js` (loaded right after this file on every page) which
+  // overrides both with the deploying stack's real values — so prod self-configures
+  // to prod, dev to dev, and neither is hand-edited (D24). These fallbacks apply only
+  // when config.generated.js is absent, e.g. serving straight from `web/` locally.
+
+  // API URL — the deployed API Gateway base (dev stack wcu3d2uaf2, eu-central-1).
   API_URL: 'https://wcu3d2uaf2.execute-api.eu-central-1.amazonaws.com',
 
-  // Cognito user pool for site login (AUTH1/AUTH2, decision D18). These are the
-  // dev stack's CDK outputs (UserPoolId / UserPoolClientId). The client is a
-  // public no-secret browser client (SRP). Per-stage, like API_URL above — prod
-  // gets its own pool/client. The region is implied by the pool id prefix.
+  // Cognito user pool for site login (AUTH1/AUTH2, decision D18) — the dev stack's
+  // outputs. The client is a public no-secret browser client (SRP); these ids are
+  // public by design, not secrets. Region is also implied by the pool id prefix.
   COGNITO: {
     REGION: 'eu-central-1',
     USER_POOL_ID: 'eu-central-1_VyVmN4qrS',
