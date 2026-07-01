@@ -172,3 +172,27 @@ class TestCreatePledge:
         )
         item = table.get_item(Key={"pledgeID": resp.json()["pledge_id"]})["Item"]
         assert item["email"] == "john.doe@example.com"
+
+    def test_huge_end_year_rejected_without_poisoning_stats(self, client_and_table):
+        """Security review 2026-07-02: an unbounded end_year must be a clean 400 and must
+        NOT write a giant campaign_total into STATS.pledged_total (the public headline)."""
+        client, table = client_and_table
+
+        resp = client.post(
+            "/pledges",
+            json={
+                "email": "attacker@example.com",
+                "amount": 1,
+                "is_monthly": True,
+                "end_month": 12,
+                "end_year": 10**30,
+            },
+        )
+
+        assert resp.status_code == 400
+        assert "end_year" in resp.json()["error"]
+        # No pledge row was written and the public total is untouched.
+        rows = [i for i in table.scan()["Items"] if i["pledgeID"] != "STATS"]
+        assert rows == []
+        stats = table.get_item(Key={"pledgeID": "STATS"})["Item"]
+        assert int(stats["pledged_total"]) == 0

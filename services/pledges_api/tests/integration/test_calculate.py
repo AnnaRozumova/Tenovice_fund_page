@@ -14,6 +14,7 @@ from moto import mock_aws
 
 from app import app
 from domain.pledge_math import calculate_remaining_months
+from domain.validation import MAX_PEOPLE
 
 
 def _create_table(dynamodb):
@@ -210,3 +211,14 @@ class TestCalculate:
         )
         assert resp.status_code == 400
         assert "end_month" in resp.json()["error"]
+
+    def test_people_over_cap_rejected(self, client_and_table):
+        """Security review 2026-07-02: an oversized what-if group is a clean 400, not a
+        multiplicative big-number DoS on the shared Lambda."""
+        client, _ = client_and_table
+        resp = client.post(
+            "/calculate",
+            json={"people": MAX_PEOPLE + 1, "amount": 100, "is_monthly": False},
+        )
+        assert resp.status_code == 400
+        assert "people" in resp.json()["error"]
