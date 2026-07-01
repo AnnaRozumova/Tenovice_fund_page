@@ -74,16 +74,20 @@ class TestUpsertAndLookupFlow:
 
         lookup = requests.get(f"{API_URL}/pledges/by-email", params={"email": email})
         assert lookup.status_code == 200
-        data = lookup.json()
-        assert data["email"] == email.lower()
+        # Phase M (D23): by-email returns the caller's pledges as a list, each with its id.
+        pledges = lookup.json()["pledges"]
+        assert len(pledges) == 1
+        data = pledges[0]
         assert data["amount"] == 100
         assert data["is_monthly"] is False
-        # The hardened endpoint projects an allowlist; internals never leak.
+        assert data["pledge_id"] == create.json()["pledge_id"]
+        # The hardened endpoint projects an allowlist; internals/identity never leak.
         assert "name" not in data
-        assert "pledgeID" not in data
-        assert "created_at" not in data
+        assert "email" not in data
+        assert "updated_at" not in data
 
-    def test_second_post_same_email_updates(self):
+    def test_second_post_same_email_creates_second_pledge(self):
+        # Phase M (D23): no upsert — a second POST with the same email is a SECOND pledge.
         email = _unique_email()
         base = {
             "email": email,
@@ -95,17 +99,20 @@ class TestUpsertAndLookupFlow:
         assert first.status_code == 201
 
         second = requests.post(f"{API_URL}/pledges", json={**base, "amount": 80})
-        assert second.status_code == 200
+        assert second.status_code == 201
 
         lookup = requests.get(f"{API_URL}/pledges/by-email", params={"email": email})
         assert lookup.status_code == 200
-        assert lookup.json()["amount"] == 80
+        pledges = lookup.json()["pledges"]
+        assert len(pledges) == 2
+        assert sorted(p["amount"] for p in pledges) == [50, 80]
 
-    def test_lookup_unknown_email_returns_404(self):
+    def test_lookup_unknown_email_returns_empty_list(self):
         lookup = requests.get(
             f"{API_URL}/pledges/by-email", params={"email": _unique_email()}
         )
-        assert lookup.status_code == 404
+        assert lookup.status_code == 200
+        assert lookup.json()["pledges"] == []
 
     def test_lookup_without_email_returns_400(self):
         lookup = requests.get(f"{API_URL}/pledges/by-email")

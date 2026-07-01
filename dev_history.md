@@ -5,6 +5,56 @@ and how it was verified. Companion to `CLAUDE.md` (developer quick-start) and `d
 
 ---
 
+## 2026-07-01 — M1: multiple pledges per account (backend) — no upsert, PUT/DELETE, distinct-email supporters
+
+**Why:** The campaign runs for years, so one person may want several pledges — e.g. a one-time gift plus a
+monthly one, or a new pledge added later — and be able to edit or delete each without losing the others
+(decision D23, "variant B"). Today `POST /pledges` upserts by email (one pledge per account); this lifts that
+cap. Storage is unchanged (each pledge is its own item, PK `pledgeID`, grouped by the non-unique `email` via
+`EmailIndex`) — only the API and the supporter-count semantics change. M1 is the backend; the pledge-rows UI
+is M2.
+
+**What — API (`services/pledges_api/src/api/pledges.py`):**
+- **`POST /pledges` — always creates** a new pledge (removed the `_find_pledge_by_email` → update-or-create
+  upsert). Handler renamed `create_or_update_pledge` → `create_pledge`.
+- **`PUT /pledges/{id}`** (new) — edit one of the caller's own pledges; **owner-checked** (the item's `email`
+  must equal the caller's identity, compared case-insensitively, else 403; 404 if the id is absent/a sentinel).
+- **`DELETE /pledges/{id}`** (new) — delete one of the caller's own pledges; owner-checked; subtracts its
+  impact from `STATS`.
+- **`GET /pledges/by-email` now returns a list** — `{"pledges": [ {allowlist… , "pledge_id"} ], "currency"}`,
+  each pledge carrying its `pledge_id` so the owner can address an edit/delete; empty list (200) when none
+  (was 404). Handler renamed `get_pledge_by_email` → `get_my_pledges`; constant `PLEDGE_FIELDS` →
+  `MY_PLEDGE_FIELDS` (+`created_at`). Identity handling factored into `_resolve_identity` (JWT claim vs local
+  client email), reused by all four pledge handlers; still fails closed (401) on an authenticated request
+  whose token lacks an `email` claim, and the email is never echoed (H1). `pledge_id` stays off the public
+  `GET /pledges`.
+- **Supporter tally = distinct emails (D23):** `STATS.contributors_count` is `+1` only on an account's *first*
+  pledge and `−1` only on deleting its *last* (both decided by counting the email's rows in `EmailIndex`
+  before the write/delete); `+0` on further pledges and on edits.
+
+**What — pledge math (`domain/pledge_math.py`) — fixes a pre-existing edit drift found in review:**
+- `calculate_remaining_months` / `calculate_pledge_values` gained an optional **`reference`** datetime.
+  Create/preview omit it (defaults to now, unchanged). The **edit** path passes the pledge's `created_at`, so
+  a monthly pledge's frozen `campaign_total` is recomputed on its **original baseline** — an unchanged edit is
+  a true no-op (delta 0) and elapsed months no longer push a bogus negative delta into `STATS.pledged_total`
+  (the old update path recomputed against "now" and diffed it against the create-time value).
+
+**What — infra (`cdk/src/constructs/apigw.py`):** added **`PUT` + `DELETE`** to the HTTP API CORS
+`allow_methods` (the browser preflight must permit the new verbs; no new API-GW route — they still flow
+through `ANY /{proxy+}`).
+
+**Verified:** ruff clean (services + cdk); **136 passed** on Python 3.14 (`services/pledges_api/tests`), incl.
+new `test_update_delete_pledge.py` (owner-checked edit/delete, distinct-email +1/−1, no-op monthly edit doesn't
+corrupt STATS), the `reference`-anchored math unit test, and updated create/by-email/currency/proxy tests.
+`/code-review` (Opus high, 2 finder agents + fixes) applied: the monthly-edit STATS drift (fixed via the
+`reference` anchor), a defensive `.get("amount")` on delete, and case-insensitive owner checks; the remaining
+finding (non-transactional STATS supporter count under true concurrency) is the pre-existing H1/P2 limitation,
+documented, negligible at this scale.
+
+**Not done here:** the frontend (`web/pledge.js` still reads the old single-object `by-email` shape → stale
+until **M2**, which builds the pledge-rows UI: list · add · edit · delete). **Not deployed** — needs
+`cdk deploy` (Lambda + the CORS change). Branch `38-multiple-pledges-per-account`.
+
 ## 2026-06-30 — Password policy relaxed + calculator takes a number of months (frontend + Cognito)
 
 **Why:** Two product tweaks (Martin). (1) The 12-char + symbol password rule was needlessly strict for a
