@@ -4,7 +4,11 @@ version = "0.1.0"
 description = "Infrastructure (CDK) for the fundraising calculator"
 requires-python = ">=3.14"
 dependencies = [
-  "aws-cdk-lib>=2.150.0",
+  # Floor bumped to the version this stack is actually built/tested against:
+  # lambdas.py + cognito.py use Runtime.PYTHON_3_14, which the old >=2.150.0 floor
+  # predates — a clean install resolving to a 2.15x/2.16x would fail synth with
+  # "Runtime has no attribute PYTHON_3_14".
+  "aws-cdk-lib>=2.260.0",
   "constructs>=10.0.0,<11.0.0"
 ]
 
