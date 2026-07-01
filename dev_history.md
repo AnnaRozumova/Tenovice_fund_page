@@ -5,6 +5,43 @@ and how it was verified. Companion to `CLAUDE.md` (developer quick-start) and `d
 
 ---
 
+## 2026-07-01 — Data-loss guards on the Pledges table + stage/env hardening
+
+**Why:** A full-app review found the DynamoDB table that holds every pledge had **no `deletion_protection`
+and no point-in-time recovery** — only `RemovalPolicy.RETAIN`, which blocks a stack *delete* but **not** an
+in-place *replace* (the `table_name` + partition key are immutable, so a future change to either replaces the
+table and orphans all data, with no backup to restore from). `cognito.py` already guards its pool with
+`deletion_protection` and even documents the replace risk — the table with the real data was the one left
+unprotected. Two amplifiers: the stack was **environment-agnostic** (no `env=`), and `stage` (default `dev`)
+was read without validation, so a prod deploy that forgets `--context stage=prod` — or a typo — silently
+picks the disposable dev policies.
+
+**What:**
+- **`cdk/src/constructs/dynamodb.py`** — the Pledges table now sets `deletion_protection=not is_dev` and
+  `point_in_time_recovery_specification(point_in_time_recovery_enabled=not is_dev)`. Prod → protected + 35-day
+  continuous backup; disposable dev keeps both off so `cdk destroy` still works.
+- **`cdk/src/constructs/config.py`** — `AppConfig.from_cdk` validates `stage` against `VALID_STAGES =
+  ("dev", "prod")` and raises a clear error otherwise, so a mistyped stage can't silently flip retention.
+- **`cdk/src/app.py`** — binds the stack to `cdk.Environment(account=CDK_DEFAULT_ACCOUNT, region=
+  CDK_DEFAULT_REGION)` via `os.environ.get` (stays agnostic locally when unset, but a real deploy is pinned
+  to a concrete account).
+- **`cdk/pyproject.toml`** — bumped the `aws-cdk-lib` floor `>=2.150.0` → `>=2.260.0`, the version actually
+  built/tested against (the old floor predates `Runtime.PYTHON_3_14`, so a clean resolve could fail synth).
+
+**Result:** prod pledge data is protected against accidental delete/replace and recoverable via PITR; a
+forgotten/typo'd stage now fails fast instead of quietly deploying disposable policies to prod.
+
+**Verified:** `ruff check src` clean; `python -m src.app` synth exit 0 for **dev** (table `…-dev-Pledges`,
+`DeletionPolicy: Delete`, `DeletionProtectionEnabled: false`, PITR off) and **prod** (`…-prod-Pledges`,
+`DeletionPolicy: Retain`, `DeletionProtectionEnabled: true`, PITR on); an unknown stage (`prd`) raises
+`ValueError: Unknown stage 'prd'`. Backend + frontend unchanged.
+
+> **Not fixed here (deliberately):** tightening the S3 bucket's Block Public Access flags is a separate,
+> deploy-tested change (a wrong move breaks the public site); the non-transactional `STATS` supporter tally
+> (GSI eventual consistency) remains a documented, at-scale-negligible limitation. Both tracked for follow-up.
+
+---
+
 ## 2026-07-01 — Per-stage frontend config generated at deploy (D24)
 
 **Why:** Ondra deployed the site to prod (one-tenovice.cz) but it kept calling **our dev** API + Cognito pool,

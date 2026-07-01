@@ -323,12 +323,16 @@ tooling and stays English. **Parity gate:** every language must define the same 
 
 - **CDK context** (`cdk/cdk.json`): `stage` (default `dev`), `project_name` (`fundraising-calculator`),
   `api_name` (`fundraising-api`), `pledges_table_name` (`Pledges`). Table name =
-  `{project_name}-{stage}-{pledges_table_name}`. Override with `--context key=value`.
+  `{project_name}-{stage}-{pledges_table_name}`. Override with `--context key=value`. `stage` is validated
+  against `{dev, prod}` (`config.py`) — a typo raises instead of silently flipping retention. The stack is
+  bound to `CDK_DEFAULT_ACCOUNT`/`REGION` (`app.py`).
 - **S3 website bucket name** = `{project_name}-{stage}-{AWS::AccountId}-website`. S3 names are **globally
   unique across all of AWS**, so the account id is included to keep the same app deployable from multiple
   accounts (dev / prod) without a name clash; `stage` separates environments within one account.
 - **dev stage** → DynamoDB + S3 use `RemovalPolicy.DESTROY` (and S3 `auto_delete_objects`); any other
-  stage → `RETAIN`.
+  stage → `RETAIN`. On non-dev the Pledges table also gets **`deletion_protection`** (blocks an in-place
+  replace, which `RETAIN` alone does not) and **point-in-time recovery** (35-day backup); both are off on
+  disposable dev.
 - **Admin secret** (`update_config`): the `ADMIN_SECRET` Lambda env var. CDK reads it from the deploy
   environment (`os.environ`), which the CI/CD pipeline (D13) sources from SSM / Secrets Manager — it is
   **never committed**. If unset, `update_config` fails closed (every `POST /config` → 401). Validated with a
