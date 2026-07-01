@@ -329,6 +329,7 @@ async function submitPledge(event) {
   const path = editing ? `/pledges/${encodeURIComponent(editingId)}` : '/pledges';
 
   let response = null;
+  let threw = false;
   try {
     response = await Auth.apiFetch(withCurrency(path), {
       method: editing ? 'PUT' : 'POST',
@@ -337,11 +338,19 @@ async function submitPledge(event) {
     });
   } catch (error) {
     response = null;
+    threw = true;
   }
 
   if (!response || !response.ok) {
     console.error('Error saving pledge');
-    showError('formError', t('pledge.errSave'));
+    // A thrown fetch (network blip) on a CREATE is ambiguous — the POST may have
+    // reached the server and stored the pledge even though we never saw the reply.
+    // There is no upsert (D23: POST always creates), so a blind retry would make a
+    // duplicate. Tell the user to refresh and check first. A definitive server
+    // rejection (a response with !ok) or an edit (PUT is idempotent by id) is safe
+    // to retry with the normal message.
+    const ambiguousCreate = threw && !editing;
+    showError('formError', t(ambiguousCreate ? 'pledge.errSaveUnconfirmed' : 'pledge.errSave'));
     button.disabled = false;
     button.textContent = t('pledge.save');
     return;

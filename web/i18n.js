@@ -101,6 +101,7 @@ const TRANSLATIONS = {
     'pledge.errMessageMax': 'Zpráva nesmí přesáhnout {max} znaků.',
     'pledge.errMonths': 'Zadej počet měsíců (alespoň 1).',
     'pledge.errSave': 'Příslib se nepodařilo uložit. Zkus to prosím znovu.',
+    'pledge.errSaveUnconfirmed': 'Nepodařilo se ověřit, jestli se příslib uložil. Než to zkusíš znovu, obnov prosím stránku a zkontroluj to — ať ho neuložíš dvakrát.',
     'pledge.errLookup': 'Tvoje přísliby se nepodařilo načíst. Zkus to prosím znovu.',
     'pledge.retry': 'Zkusit znovu',
 
@@ -303,6 +304,7 @@ const TRANSLATIONS = {
     'pledge.errMessageMax': 'Message must not exceed {max} characters.',
     'pledge.errMonths': 'Enter the number of months (at least 1).',
     'pledge.errSave': 'Could not save pledge. Please try again.',
+    'pledge.errSaveUnconfirmed': 'We could not confirm whether your pledge was saved. Please refresh the page to check before trying again — so you do not save it twice.',
     'pledge.errLookup': 'Could not load your pledges. Please try again.',
     'pledge.retry': 'Try again',
 
