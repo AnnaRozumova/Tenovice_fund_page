@@ -14,6 +14,7 @@ from fastapi.testclient import TestClient
 from moto import mock_aws
 
 from app import app
+from api.pledges import MAX_PLEDGES_PER_ACCOUNT
 
 
 def _create_table(dynamodb):
@@ -196,3 +197,46 @@ class TestCreatePledge:
         assert rows == []
         stats = table.get_item(Key={"pledgeID": "STATS"})["Item"]
         assert int(stats["pledged_total"]) == 0
+
+    def test_pledge_count_cap_rejects_beyond_limit(self, client_and_table):
+        """Security review 2026-07-02: an account holds at most MAX_PLEDGES_PER_ACCOUNT
+        pledges — the (N+1)th create is a clean 409 so one account can't loop POST to
+        inflate the public STATS.pledged_total headline."""
+        client, table = client_and_table
+        email = "prolific@example.com"
+
+        for _ in range(MAX_PLEDGES_PER_ACCOUNT):
+            resp = client.post(
+                "/pledges", json={"email": email, "amount": 10, "is_monthly": False}
+            )
+            assert resp.status_code == 201
+
+        over = client.post(
+            "/pledges", json={"email": email, "amount": 10, "is_monthly": False}
+        )
+        assert over.status_code == 409
+        assert str(MAX_PLEDGES_PER_ACCOUNT) in over.json()["error"]
+
+        # Exactly the cap's worth of rows exist; STATS reflects only those (not the reject).
+        rows = [i for i in table.scan()["Items"] if i["pledgeID"] != "STATS"]
+        assert len(rows) == MAX_PLEDGES_PER_ACCOUNT
+        stats = table.get_item(Key={"pledgeID": "STATS"})["Item"]
+        assert int(stats["pledged_total"]) == 10 * MAX_PLEDGES_PER_ACCOUNT
+        # The account is one supporter regardless of how many pledges it holds (D23).
+        assert int(stats["contributors_count"]) == 1
+
+    def test_pledge_cap_is_per_account_not_global(self, client_and_table):
+        """The cap is per-email: a different account can still pledge after one hits it."""
+        client, _ = client_and_table
+        for _ in range(MAX_PLEDGES_PER_ACCOUNT):
+            assert (
+                client.post(
+                    "/pledges",
+                    json={"email": "full@example.com", "amount": 10, "is_monthly": False},
+                ).status_code
+                == 201
+            )
+        other = client.post(
+            "/pledges", json={"email": "fresh@example.com", "amount": 10, "is_monthly": False}
+        )
+        assert other.status_code == 201
