@@ -101,8 +101,22 @@ const TRANSLATIONS = {
     'pledge.errMessageMax': 'Zpráva nesmí přesáhnout {max} znaků.',
     'pledge.errMonths': 'Zadej počet měsíců (alespoň 1).',
     'pledge.errSave': 'Příslib se nepodařilo uložit. Zkus to prosím znovu.',
-    'pledge.errLookup': 'Tvůj příslib se nepodařilo načíst. Zkus to prosím znovu.',
+    'pledge.errLookup': 'Tvoje přísliby se nepodařilo načíst. Zkus to prosím znovu.',
     'pledge.retry': 'Zkusit znovu',
+
+    // Pledge list (Phase M — several pledges per account)
+    'pledge.listTitle': 'Tvoje přísliby',
+    'pledge.listIntro':
+      'Toto jsou tvoje přísliby. Můžeš přidat další, kterýkoli upravit nebo smazat.',
+    'pledge.addAnother': 'Přidat další příslib',
+    'pledge.rowOneTime': 'jednorázově',
+    'pledge.rowMonthly': 'měsíčně',
+    'pledge.rowImpact': 'Přínos kampani: {amount}',
+    'pledge.edit': 'Upravit',
+    'pledge.delete': 'Smazat',
+    'pledge.cancel': 'Zrušit',
+    'pledge.deleteConfirm': 'Opravdu smazat tento příslib?',
+    'pledge.errDelete': 'Příslib se nepodařilo smazat. Zkus to prosím znovu.',
 
     // Success page
     'success.docTitle': 'Příslib uložen | Fundraising Těnovice',
@@ -289,8 +303,22 @@ const TRANSLATIONS = {
     'pledge.errMessageMax': 'Message must not exceed {max} characters.',
     'pledge.errMonths': 'Enter the number of months (at least 1).',
     'pledge.errSave': 'Could not save pledge. Please try again.',
-    'pledge.errLookup': 'Could not load your pledge. Please try again.',
+    'pledge.errLookup': 'Could not load your pledges. Please try again.',
     'pledge.retry': 'Try again',
+
+    // Pledge list (Phase M — several pledges per account)
+    'pledge.listTitle': 'Your pledges',
+    'pledge.listIntro':
+      'These are your pledges. You can add another, edit or remove any of them.',
+    'pledge.addAnother': 'Add another pledge',
+    'pledge.rowOneTime': 'one-time',
+    'pledge.rowMonthly': 'monthly',
+    'pledge.rowImpact': 'Impact on the campaign: {amount}',
+    'pledge.edit': 'Edit',
+    'pledge.delete': 'Delete',
+    'pledge.cancel': 'Cancel',
+    'pledge.deleteConfirm': 'Delete this pledge?',
+    'pledge.errDelete': 'Could not delete the pledge. Please try again.',
 
     // Success page
     'success.docTitle': 'Pledge Saved | Tenovice Fundraising',
