@@ -5,6 +5,41 @@ and how it was verified. Companion to `CLAUDE.md` (developer quick-start) and `d
 
 ---
 
+## 2026-07-01 — Per-stage frontend config generated at deploy (D24)
+
+**Why:** Ondra deployed the site to prod (one-tenovice.cz) but it kept calling **our dev** API + Cognito pool,
+so live pledges and logins landed in the **dev** DynamoDB. Root cause: `web/config.js` hardcodes the dev
+`API_URL` + Cognito ids and `BucketDeployment` copies it verbatim into **every** stage's bucket. A manual S3
+edit is only temporary — the next deploy re-copies `web/` and reverts it. These ids are **public by design**
+(a no-secret SRP browser client id + an API URL — see `cognito.py`), not a security leak; the fix is about
+**wiring**, not secrecy.
+
+**What:**
+- **`cdk/src/constructs/s3_website.py`** — `S3WebsiteConstruct` now takes `api_url`, `cognito_region`,
+  `user_pool_id`, `user_pool_client_id` and adds a second deployment source
+  `s3deploy.Source.data("config.generated.js", …)`. The file reassigns `CONFIG.API_URL` and `CONFIG.COGNITO.*`
+  from the **deploying stack's own** values (deploy-time markers → `Fn::GetAtt ApiHttpApi.ApiEndpoint`,
+  `Ref` pool/client, `AWS::Region`).
+- **`cdk/src/stack.py`** — passes those four values (from the `Api` + `Cognito` constructs) into the website.
+- **`web/config.js`** — its `API_URL` + `COGNITO` are now documented as **dev fallbacks only**, overridden by
+  `config.generated.js` when present (absent locally → fallbacks stand, so `serve.sh` / `?api=` unaffected).
+- **`web/index.html` · `pledge.html` · `auth.html` · `admin.html`** — load `<script src="config.generated.js">`
+  right after `config.js`. (`success.html` loads neither — it uses no API/Cognito.)
+
+**Result:** `cdk deploy` self-configures the frontend per stage — prod bakes prod endpoints, dev bakes dev —
+with no hand-edited config and no chance of a prod site silently pointing at dev.
+
+**Verified:** `cdk synth` (dev) exit 0; `ruff check src` clean; the synthesized `config.generated.js` asset
+carries `<<marker:…>>` placeholders (not hardcoded dev values), and the template's `SourceMarkers` maps them to
+`ApiHttpApi.ApiEndpoint` / `AWS::Region` / the Cognito pool + web-client `Ref`s — so each deploy substitutes
+its own stack's values. Backend + dev behaviour unchanged.
+
+**Ondra's steps to go live on prod:** merge → `cdk deploy` his prod stack (resources already exist) → **one
+CloudFront invalidation of `/config.js`** (his CloudFront is outside our CDK, so the deploy can't auto-invalidate)
+→ hard-refresh. After that, prod pledges/logins hit the prod stack, not dev.
+
+---
+
 ## 2026-07-01 — M2: multiple pledges per account (frontend) — list + add / edit / delete
 
 **Why:** Ship the UI for M1's multi-pledge backend (D23). The pledge page showed a single pledge (create or
