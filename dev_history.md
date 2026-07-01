@@ -63,6 +63,36 @@ canonical CZK end-to-end). Public pages unaffected (they follow page language fo
 
 ---
 
+## 2026-07-01 — Frontend robustness: no duplicate pledge, clamped bar, honest amount cap
+
+**Why:** A full-app review surfaced three small frontend issues:
+1. **Duplicate pledge on a lost response.** `submitPledge` already disables the button during the request
+   (guards a double-click), but a *thrown* fetch (network blip) was treated the same as a server rejection —
+   the user got "save failed, try again". On a CREATE there is **no upsert** (D23: `POST` always creates), so
+   the original POST may have stored the pledge server-side while the reply was lost; a blind retry then makes
+   a **second** pledge (and a double `STATS` increment).
+2. **Progress bar could overflow.** `main.js` set the bar width to the raw `progress` %, so once the balance
+   exceeds the (possibly stale) goal it renders e.g. `width: 130%` and overflows its container — while the
+   pledge page clamps the identical metric to 0–100 %.
+3. **Misleading amount cap.** `pledge.html`'s amount input hardcoded `max="100000"` (the EUR cap) even in CZK
+   mode, where the real cap is 2,500,000 CZK; only masked because the form is `novalidate` and JS enforces the
+   currency-aware `maxAmount()`.
+
+**What:**
+- **`web/pledge.js`** — track whether the fetch threw; on an ambiguous **network** failure of a **CREATE**,
+  show a new message telling the user to refresh & check before retrying (a definitive server `!ok`, or an
+  **edit** — `PUT` is idempotent by id — keeps the normal retry message).
+- **`web/i18n.js`** — new key `pledge.errSaveUnconfirmed` (CZ + EN, parity kept at 167 keys).
+- **`web/main.js`** — clamp the *bar width* to 0–100 % (the percent *text* still shows the true value, so a
+  >100 % campaign reads honestly).
+- **`web/pledge.html`** — drop the hardcoded `max="100000"` from the amount input (JS `validatePledgeForm` /
+  `maxAmount()` already enforce the real, currency-aware cap).
+
+**Verified:** `node tools/check-i18n-parity.js` passes (167 keys, cs↔en in parity); `node --check` clean on
+`i18n.js` / `main.js` / `pledge.js`. Backend + CDK unchanged.
+
+---
+
 ## 2026-07-01 — Per-stage frontend config generated at deploy (D24)
 
 **Why:** Ondra deployed the site to prod (one-tenovice.cz) but it kept calling **our dev** API + Cognito pool,

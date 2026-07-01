@@ -33,9 +33,14 @@ function updateProgressBar() {
   const progressBar = document.getElementById('progressBar');
   const progressPercent = document.getElementById('progressPercent');
 
+  // Clamp the *bar width* to 0–100 % so it can't overflow its container once the
+  // balance exceeds the goal (the pledge page clamps the same way). The percent
+  // *text* keeps the true value, so a >100 % campaign still reads honestly.
+  const barWidth = Math.max(0, Math.min(progress, 100));
+
   // Animate progress bar
   setTimeout(() => {
-    progressBar.style.width = `${progress}%`;
+    progressBar.style.width = `${barWidth}%`;
     progressPercent.textContent = `${progress}%`;
   }, 100);
 }
