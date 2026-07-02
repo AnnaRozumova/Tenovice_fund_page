@@ -5,6 +5,39 @@ and how it was verified. Companion to `CLAUDE.md` (developer quick-start) and `d
 
 ---
 
+## 2026-07-02 — Security review hardening: bound numeric inputs + per-account pledge cap
+
+**Why:** A dedicated full-app security review (multi-agent, each finding adversarially verified) found the
+public campaign totals could be poisoned/abused by a single self-registered account (self-signup is open).
+No money flows through the site and pledge data is anonymous, so the realistic impact is the **integrity of
+the displayed numbers** — but those totals are the whole point of the site (social proof). Two reachable
+issues were actioned; the rest were either already fixed (DynamoDB PITR + deletion-protection, see the
+2026-07-01 entry), correctly deferred to the domain/CloudFront phase (wildcard CORS, public S3 bucket, CSP —
+they need the real domain), or intentionally accepted (open self-signup; the admin shared secret is strong).
+
+**What (two small PRs, `main`-based, merged in order):**
+- **PR #49 — `domain/validation.py` + `domain/pledge_math.py` (the HIGH finding).** `_validate_end_date`
+  bounded `end_month` (1–12) but left `end_year` **unbounded above**: a monthly pledge with a huge year made
+  `campaign_total = amount * remaining_months` astronomically large, and `_adjust_stats` ADDed it straight
+  into the public `STATS.pledged_total` (shown to every visitor via `GET /stats`). The same gap made
+  `POST /calculate` a big-integer CPU burn on the shared Lambda. Fix: `end_year ≤ MAX_END_YEAR (2035)` in
+  `_validate_end_date` (both the save and calculate paths — one shared function); `validate_calculate_input`
+  caps `people` (`MAX_PEOPLE = 7000`) and the simulator `amount` (`MAX_CALCULATE_AMOUNT = MAX_AMOUNT`);
+  `_require_positive_int` gained an optional `maximum`; `calculate_remaining_months` clamps to
+  `MAX_REMAINING_MONTHS (600)` as a defense-in-depth backstop. Out-of-range input → clean **400**.
+- **PR #50 — `api/pledges.py` (per-account pledge cap).** With no upsert since D23, every `POST /pledges`
+  creates a new row whose `campaign_total` is ADDed into `STATS.pledged_total`, so one account could loop
+  the endpoint to inflate the public headline. `create_pledge` now returns **409** once the account already
+  holds `MAX_PLEDGES_PER_ACCOUNT (20)` pledges; the email-count query is taken once and reused for the
+  supporter tally (no second query).
+
+**Verified:** ruff clean; full gate green on **Python 3.14** — **150 passed** (PR #49 landed at 148, PR #50
+adds 2 integration tests; +12 total across both). New tests cover: huge `end_year` → 400 with STATS
+untouched; `people`/`amount` caps on `/calculate`; the `remaining_months` clamp; the 21st pledge → 409 with
+STATS reflecting only the accepted rows; and that the cap is per-email, not global.
+
+---
+
 ## 2026-07-01 — Data-loss guards on the Pledges table + stage/env hardening
 
 **Why:** A full-app review found the DynamoDB table that holds every pledge had **no `deletion_protection`

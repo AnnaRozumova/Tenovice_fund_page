@@ -40,6 +40,13 @@ router = APIRouter()
 # the EmailIndex — but the by-email/list paths filter defensively anyway.
 _SENTINEL_IDS = ("STATS", "CONFIG")
 
+# Anti-abuse cap on how many pledges one account (email) may hold. Since D23 there is no
+# upsert — every POST creates a new row whose campaign_total is ADDed into the public
+# STATS.pledged_total — so without a cap one self-registered account could loop
+# POST /pledges to inflate the public "raised" headline. 20 is far above any real use
+# (a person managing a few pledges) while bounding the abuse (security review 2026-07-02).
+MAX_PLEDGES_PER_ACCOUNT = 20
+
 # Fields the owner may see about each of their own pledges. The raw DynamoDB item is
 # never returned wholesale — we project an explicit allowlist. ``pledge_id`` is added
 # separately (the owner needs it to edit/delete a specific pledge); it is the owner's
@@ -238,7 +245,15 @@ async def create_pledge(request: Request):
         return json_response(400, {"error": str(e)})
 
     try:
-        return _create_new_pledge(table, validated)
+        # One account may hold at most MAX_PLEDGES_PER_ACCOUNT pledges (anti-abuse). The
+        # count is taken once here and reused by _create_new_pledge for the supporter tally.
+        existing_count = _count_email_pledges(table, validated["email"])
+        if existing_count >= MAX_PLEDGES_PER_ACCOUNT:
+            return json_response(
+                409,
+                {"error": f"An account may hold at most {MAX_PLEDGES_PER_ACCOUNT} pledges"},
+            )
+        return _create_new_pledge(table, validated, existing_count=existing_count)
     except ClientError:
         return json_response(500, {"error": "Failed to process pledge"})
 
@@ -333,7 +348,7 @@ def _count_email_pledges(table, email: str) -> int:
     return len([i for i in result.get("Items", []) if i.get("pledgeID") not in _SENTINEL_IDS])
 
 
-def _create_new_pledge(table, data: dict):
+def _create_new_pledge(table, data: dict, existing_count: int):
     pledge_id = str(uuid.uuid4())
     timestamp = datetime.now(timezone.utc).isoformat()
 
@@ -350,8 +365,8 @@ def _create_new_pledge(table, data: dict):
     )
 
     # Supporters = distinct emails (D23): bump the tally only when this account had no
-    # pledge yet. Count BEFORE writing the new row.
-    is_first_for_email = _count_email_pledges(table, data["email"]) == 0
+    # pledge yet. ``existing_count`` was taken (once) by the caller before this create.
+    is_first_for_email = existing_count == 0
 
     pledge = Pledge(
         pledge_id=pledge_id,
