@@ -8,6 +8,7 @@ from .constructs.lambdas import LambdasConstruct
 from .constructs.apigw import ApiConstruct
 from .constructs.s3_website import S3WebsiteConstruct
 from .constructs.cognito import CognitoConstruct
+from .constructs.cloudfront import CloudFrontConstruct
 
 class FundraisingCalculatorStack(Stack):
     def __init__(self, scope: Construct, construct_id: str, **kwargs) -> None:
@@ -32,7 +33,7 @@ class FundraisingCalculatorStack(Stack):
         )
         # The website gets a per-stage config.generated.js baked from these outputs, so
         # each deploy self-configures its frontend (no hand-edited API_URL — see D24).
-        S3WebsiteConstruct(
+        website = S3WebsiteConstruct(
             self,
             "Website",
             config=config,
@@ -40,6 +41,14 @@ class FundraisingCalculatorStack(Stack):
             cognito_region=self.region,
             user_pool_id=cognito.user_pool.user_pool_id,
             user_pool_client_id=cognito.user_pool_client.user_pool_client_id,
+        )
+
+        # A CloudFront distribution over the site bucket, created on every stage but NOT
+        # yet wired to the custom domain (skeleton — see cloudfront.py). Safe alongside
+        # the existing manually-managed prod CloudFront: it's a separate, dark distribution
+        # and CloudFormation never touches the manual one. Domain/ACM/OAC/WAF come later.
+        CloudFrontConstruct(
+            self, "CloudFront", config=config, website_bucket=website.website_bucket
         )
 
         CfnOutput(self, "HttpApiUrl", value=api.http_api.api_endpoint)
