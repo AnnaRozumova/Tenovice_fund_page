@@ -100,6 +100,7 @@ async function loadStats() {
 // Sticky top bar: real money raised vs goal (same metric as the home page).
 function renderTopbar() {
   $('barBalance').textContent = formatCurrency(CONFIG.CURRENT_BALANCE);
+  $('barPledged').textContent = formatCurrency(currentStats.pledged_total);
   $('barGoal').textContent = formatCurrency(CONFIG.FUNDRAISING_GOAL);
   const pct = calculateProgress(CONFIG.CURRENT_BALANCE, CONFIG.FUNDRAISING_GOAL);
   $('barProgress').style.width = `${Math.max(0, Math.min(pct, 100))}%`;
