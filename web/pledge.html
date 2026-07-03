@@ -9,6 +9,13 @@
 <body>
   <div class="container">
     <header class="header">
+      <a href="index.html" class="home-link" data-i18n-aria-label="common.backHome" aria-label="Back to homepage">
+        <svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor"
+             stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M3 10.5 12 3l9 7.5"/>
+          <path d="M5 9.5V20a1 1 0 0 0 1 1h4v-6h4v6h4a1 1 0 0 0 1-1V9.5"/>
+        </svg>
+      </a>
       <div class="logo">
         <img src="images/logo_kagyu.svg" data-i18n-alt="common.logoAlt" alt="Karma Kagyu buddhism">
       </div>
@@ -43,6 +50,10 @@
           <div class="topbar-stat">
             <div class="topbar-label" data-i18n="index.currentBalanceLabel">Current Balance</div>
             <div class="topbar-value" id="barBalance">…</div>
+          </div>
+          <div class="topbar-stat">
+            <div class="topbar-label" data-i18n="index.totalPledgedLabel">Total Pledged</div>
+            <div class="topbar-value" id="barPledged">…</div>
           </div>
           <div class="topbar-stat">
             <div class="topbar-label" data-i18n="index.goalLabel">Our Goal</div>
