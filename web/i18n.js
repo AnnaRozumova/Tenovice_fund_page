@@ -25,7 +25,7 @@ const TRANSLATIONS = {
     'index.docTitle': 'Fundraising Těnovice',
     'index.heroTitle': 'Projekt ONE Těnovice',
     'index.heroDesc':
-      'Těnovice jsou velký projekt na mnoho generací. Aktuálně se soustředíme na tři hlavní směry: nová Gompa, Sangha House a nová část Basecampu – Sever.',
+      'Projekt One Těnovice sjednocuje českou sanghu Buddhismu Diamantové cesty a také novou Gompu, Sangha House a novou část Basecampu – Sever, které nám všem umožní se setkávat, společně meditovat a rozvíjet se pro dobro všech bytostí.',
     'index.heroImageAlt': 'Pomoz vytvářet čistou zemi',
     'index.bannerAlt': 'Banner projektu',
     'index.progressHeading': 'Průběh sbírky',
@@ -228,7 +228,7 @@ const TRANSLATIONS = {
     'index.docTitle': 'Tenovice Fundraising',
     'index.heroTitle': 'ONE Tenovice Project',
     'index.heroDesc':
-      'Tenovice is a big project for many generations. At the moment we focus our development on 3 main directions: New Gompa, Sangha House and new land Basecamp North.',
+      'The One Těnovice project unites the Czech Diamond Way Buddhist sangha, as well as the new Gompa, Sangha House, and Basecamp - North, enabling all of us to meet, meditate together, and develop for the benefit of all beings.',
     'index.heroImageAlt': 'Make your pure land',
     'index.bannerAlt': 'Project Banner',
     'index.progressHeading': 'Fundraising Progress',
