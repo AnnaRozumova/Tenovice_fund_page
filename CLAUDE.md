@@ -60,7 +60,11 @@ AWS CDK (Python) describes & deploys all of the above.
   request needs a valid token, with three unauthenticated carve-out routes that win by route specificity —
   `GET /stats`, `ANY /config` (public read + admin shared-secret write), and `OPTIONS /{proxy+}` (CORS
   preflight carries no token). The `$default` stage gets **throttling** (rate 20 / burst 40, both envs).
-- `constructs/s3_website.py` — public S3 static-website bucket; deploys `../web` and outputs the URL.
+- `constructs/s3_website.py` — S3 static-site bucket, **stage-conditional**: **dev** is a public S3
+  *website* bucket (unchanged); **prod** is **private** (all public access blocked, no website hosting),
+  read only through CloudFront via **OAC** — it codifies the read grant for the manually-created prod
+  CloudFront distribution so a prod `cdk deploy` re-writes the same policy instead of reverting the bucket
+  to public. Deploys `../web` (+ the generated per-stage config) and outputs the URL.
 - `constructs/cognito.py` — Cognito **user pool + public (no-secret) app client** for site login (AUTH1,
   D18): email sign-in, self sign-up + email verification, email-only password recovery, 10-char password
   policy (uppercase + lowercase + digit, no symbol required); SRP flow for custom on-site screens. Also wires a **Custom Message Lambda**

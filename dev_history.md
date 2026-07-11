@@ -5,6 +5,34 @@ and how it was verified. Companion to `CLAUDE.md` (developer quick-start) and `d
 
 ---
 
+## 2026-07-11 — Prod S3 bucket private + CloudFront OAC (stage-conditional), idempotent policy
+
+**Why:** The prod site bucket was locked down by hand in the console (public access blocked, a bucket
+policy granting only the manually-created prod CloudFront distribution via OAC). But the CDK still declared
+the bucket **public** and owned a public-read policy, so a `cdk deploy -c stage=prod` would revert the
+bucket to public and overwrite the hand-made policy — 403-ing the live `one-tenovice.cz` and re-exposing the
+bucket. This codifies the current manual state so a deploy is **idempotent**, not destructive.
+
+**What (stage-conditional, prod-only; dev untouched):**
+- `constructs/s3_website.py` — on **prod** the bucket is now private (`BlockPublicAccess.BLOCK_ALL`, no
+  website hosting) and carries a literal OAC read grant for the manual distribution
+  (`MANUAL_PROD_CLOUDFRONT_ARN = arn:aws:cloudfront::541668764077:distribution/E1RYSEQBJ360SU`: principal
+  `cloudfront.amazonaws.com`, `s3:GetObject`, scoped by `AWS:SourceArn`). The `WebsiteURL` output is
+  stage-conditional (a private bucket has no website endpoint). **dev** stays a public S3 website bucket.
+- `constructs/cloudfront.py` — the skeleton's origin is now stage-conditional: **dev** keeps
+  `S3StaticWebsiteOrigin` (website endpoint); **prod** uses `S3BucketOrigin.with_origin_access_control`
+  (a private bucket kills the website endpoint), which auto-adds this distribution's own OAC grant. So the
+  prod bucket policy ends up allowing **both** the manual and the CDK skeleton distributions.
+- Prod traffic still flows through the manually-created CloudFront — **no migration**; the skeleton stays a
+  dark, now-functional distribution (ready for a later domain/ACM/WAF cutover, D21).
+
+**Verify:** Docker-free synth check (throwaway stack of just the two constructs, `assertions.Template`):
+dev → public website bucket + website-endpoint origin, no OAC; prod → BLOCK_ALL private bucket + OAC origin
++ a two-statement bucket policy (manual `E1RYSEQBJ360SU` + the CDK distribution). Gate green: ruff clean
+(services + cdk), 150 passed (services untouched). aws-cdk-lib 2.260. **Deploy note:** the prod deploy is an
+in-place bucket update (name unchanged → no replacement, no data loss); the manual distribution's grant is
+present throughout, so the live site never 403s.
+
 ## 2026-07-02 — Security review hardening: bound numeric inputs + per-account pledge cap
 
 **Why:** A dedicated full-app security review (multi-agent, each finding adversarially verified) found the
